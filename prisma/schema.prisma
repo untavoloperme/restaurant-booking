@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum ReservationStatus {
+  PENDING
+  ARRIVED
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(STAFF)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Room {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  width     Int      @default(1000)
+  height    Int      @default(700)
+  tables    Table[]
+  createdAt DateTime @default(now())
+}
+
+model Table {
+  id           String        @id @default(cuid())
+  roomId       String
+  room         Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  name         String
+  capacity     Int
+  shape        String        @default("round")
+  x            Float
+  y            Float
+  width        Float         @default(90)
+  height       Float         @default(90)
+  rotation     Float         @default(0)
+  reservations Reservation[]
+
+  @@unique([roomId, name])
+}
+
+model OpeningHours {
+  id           String  @id @default(cuid())
+  dayOfWeek    Int     @unique
+  active       Boolean @default(true)
+  shifts       Json
+  slotInterval Int     @default(15)
+}
+
+model ClosureDay {
+  id   String   @id @default(cuid())
+  date DateTime @unique @db.Date
+  note String?
+}
+
+model Reservation {
+  id           String            @id @default(cuid())
+  code         String            @unique
+  customerName String
+  phone        String
+  partySize    Int
+  date         DateTime          @db.Date
+  time         String
+  tableId      String?
+  table        Table?            @relation(fields: [tableId], references: [id])
+  status       ReservationStatus @default(PENDING)
+  arrivedAt    DateTime?
+  checkedOutAt DateTime?
+  notes        String?
+  source       String            @default("CHATBOT")
+  insertionSeq Int               @default(autoincrement())
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([date, time])
+  @@index([status])
+}
+
+model MenuCategory {
+  id    String     @id @default(cuid())
+  name  String
+  order Int        @default(0)
+  items MenuItem[]
+}
+
+model MenuItem {
+  id          String       @id @default(cuid())
+  categoryId  String
+  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  price       Decimal      @db.Decimal(10, 2)
+  available   Boolean      @default(true)
+  order       Int          @default(0)
+}
