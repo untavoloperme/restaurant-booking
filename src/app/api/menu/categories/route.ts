@@ -11,7 +11,13 @@ export async function GET() {
 
   const cats = await prisma.menuCategory.findMany({
     orderBy: { order: "asc" },
-    include: { items: { orderBy: { order: "asc" } } },
+    include: {
+      subcategories: { orderBy: { order: "asc" } },
+      items: {
+        orderBy: { order: "asc" },
+        include: { winePairings: { select: { id: true, name: true, price: true } } },
+      },
+    },
   });
   return NextResponse.json(cats);
 }

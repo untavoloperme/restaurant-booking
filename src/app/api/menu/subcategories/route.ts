@@ -5,15 +5,8 @@ import { z } from "zod";
 
 const Schema = z.object({
   categoryId: z.string().min(1),
-  subcategoryId: z.string().nullable().optional(),
   name: z.string().min(1),
-  description: z.string().nullable().optional(),
-  price: z.number().positive(),
-  available: z.boolean().default(true),
   order: z.number().int().default(0),
-  allergenIds: z.array(z.string()).default([]),
-  mealPeriod: z.enum(["ALWAYS", "LUNCH", "DINNER"]).default("ALWAYS"),
-  featured: z.boolean().default(false),
 });
 
 export async function POST(req: Request) {
@@ -26,9 +19,6 @@ export async function POST(req: Request) {
   const parsed = Schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
 
-  const item = await prisma.menuItem.create({
-    data: parsed.data,
-    include: { winePairings: { select: { id: true, name: true, price: true } } },
-  });
-  return NextResponse.json(item, { status: 201 });
+  const sub = await prisma.menuSubcategory.create({ data: parsed.data });
+  return NextResponse.json(sub, { status: 201 });
 }

@@ -32,9 +32,16 @@ export async function GET(req: Request) {
     prisma.menuCategory.findMany({
       orderBy: { order: "asc" },
       include: {
+        subcategories: { orderBy: { order: "asc" } },
         items: {
           where: { available: true },
-          orderBy: { order: "asc" },
+          orderBy: { price: "asc" },
+          include: {
+            winePairings: {
+              where: { available: true },
+              select: { id: true, name: true, price: true },
+            },
+          },
         },
       },
     }),

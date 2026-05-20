@@ -5,17 +5,8 @@ import { z } from "zod";
 
 const UpdateSchema = z.object({
   name: z.string().min(1).optional(),
-  description: z.string().nullable().optional(),
-  price: z.number().positive().optional(),
-  available: z.boolean().optional(),
   order: z.number().int().optional(),
-  allergenIds: z.array(z.string()).optional(),
-  imageUrl: z.string().nullable().optional(),
-  mealPeriod: z.enum(["ALWAYS", "LUNCH", "DINNER"]).optional(),
-  featured: z.boolean().optional(),
   categoryId: z.string().optional(),
-  subcategoryId: z.string().nullable().optional(),
-  winePairingIds: z.array(z.string()).optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -28,19 +19,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const parsed = UpdateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
 
-  const { winePairingIds, ...rest } = parsed.data;
-
-  const item = await prisma.menuItem.update({
-    where: { id: params.id },
-    data: {
-      ...rest,
-      ...(winePairingIds !== undefined && {
-        winePairings: { set: winePairingIds.map((id) => ({ id })) },
-      }),
-    },
-    include: { winePairings: { select: { id: true, name: true, price: true } } },
-  });
-  return NextResponse.json(item);
+  const sub = await prisma.menuSubcategory.update({ where: { id: params.id }, data: parsed.data });
+  return NextResponse.json(sub);
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
@@ -49,6 +29,12 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
   }
 
-  await prisma.menuItem.delete({ where: { id: params.id } });
+  // Move items in this subcategory to no subcategory (keep categoryId)
+  await prisma.menuItem.updateMany({
+    where: { subcategoryId: params.id },
+    data: { subcategoryId: null },
+  });
+
+  await prisma.menuSubcategory.delete({ where: { id: params.id } });
   return new NextResponse(null, { status: 204 });
 }

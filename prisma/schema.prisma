@@ -107,26 +107,40 @@ model Reservation {
 }
 
 model MenuCategory {
-  id    String     @id @default(cuid())
-  name  String
-  order Int        @default(0)
-  items MenuItem[]
+  id            String            @id @default(cuid())
+  name          String
+  order         Int               @default(0)
+  items         MenuItem[]
+  subcategories MenuSubcategory[]
+}
+
+model MenuSubcategory {
+  id         String       @id @default(cuid())
+  categoryId String
+  category   MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name       String
+  order      Int          @default(0)
+  items      MenuItem[]
 }
 
 model MenuItem {
-  id          String      @id @default(cuid())
-  categoryId  String
-  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  name        String
-  description String?
-  price       Decimal     @db.Decimal(10, 2)
-  available   Boolean     @default(true)
-  order       Int         @default(0)
-  allergenIds String[]    @default([])
-  imageUrl    String?
-  mealPeriod  String      @default("ALWAYS")
-  featured    Boolean     @default(false)
-  orderItems  OrderItem[]
+  id               String           @id @default(cuid())
+  categoryId       String
+  category         MenuCategory     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  subcategoryId    String?
+  subcategory      MenuSubcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+  name             String
+  description      String?
+  price            Decimal          @db.Decimal(10, 2)
+  available        Boolean          @default(true)
+  order            Int              @default(0)
+  allergenIds      String[]         @default([])
+  imageUrl         String?
+  mealPeriod       String           @default("ALWAYS")
+  featured         Boolean          @default(false)
+  orderItems       OrderItem[]
+  winePairings     MenuItem[]       @relation("WinePairings")
+  pairedWithDishes MenuItem[]       @relation("WinePairings")
 }
 
 model Allergen {
