@@ -5,10 +5,14 @@ import { z } from "zod";
 
 const UpdateSchema = z.object({
   name: z.string().min(1).optional(),
-  description: z.string().optional(),
+  description: z.string().nullable().optional(),
   price: z.number().positive().optional(),
   available: z.boolean().optional(),
   order: z.number().int().optional(),
+  allergenIds: z.array(z.string()).optional(),
+  imageUrl: z.string().nullable().optional(),
+  mealPeriod: z.enum(["ALWAYS", "LUNCH", "DINNER"]).optional(),
+  featured: z.boolean().optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {

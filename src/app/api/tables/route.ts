@@ -6,9 +6,7 @@ import { z } from "zod";
 const TableSchema = z.object({
   roomId: z.string().min(1),
   name: z.string().min(1, "Nome/numero obbligatorio"),
-  capacity: z.number().int().refine((v) => [4, 6, 8, 10].includes(v), {
-    message: "Capacità deve essere 4, 6, 8 o 10",
-  }),
+  capacity: z.number().int().min(1),
   shape: z.enum(["round", "square", "rect"]).default("round"),
   x: z.number(),
   y: z.number(),
@@ -51,7 +49,7 @@ export async function POST(req: Request) {
   }
 }
 
-// Bulk save layout (upsert all tables for a room)
+// Bulk save layout — upsert existing tables, create new ones, delete removed ones
 export async function PUT(req: Request) {
   const session = await getAuth();
   if (!session || session.user.role !== "ADMIN") {
@@ -63,22 +61,43 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "Dati non validi" }, { status: 400 });
   }
 
+  const existingIds = (
+    await prisma.table.findMany({ where: { roomId }, select: { id: true } })
+  ).map((t) => t.id);
+
+  const incomingIds = tables
+    .map((t: Record<string, unknown>) => t.id as string)
+    .filter((id) => id && !id.startsWith("new-") && existingIds.includes(id));
+
+  const toDelete = existingIds.filter((id) => !incomingIds.includes(id));
+
   await prisma.$transaction(async (tx) => {
-    await tx.table.deleteMany({ where: { roomId } });
-    if (tables.length > 0) {
-      await tx.table.createMany({
-        data: tables.map((t: Record<string, unknown>) => ({
-          roomId,
-          name: t.name as string,
-          capacity: t.capacity as number,
-          shape: (t.shape as string) ?? "round",
-          x: t.x as number,
-          y: t.y as number,
-          width: (t.width as number) ?? 90,
-          height: (t.height as number) ?? 90,
-          rotation: (t.rotation as number) ?? 0,
-        })),
-      });
+    if (toDelete.length > 0) {
+      await tx.orderItem.deleteMany({ where: { order: { tableId: { in: toDelete } } } });
+      await tx.order.deleteMany({ where: { tableId: { in: toDelete } } });
+      await tx.reservation.updateMany({ where: { tableId: { in: toDelete } }, data: { tableId: null } });
+      await tx.table.deleteMany({ where: { id: { in: toDelete } } });
+    }
+
+    for (const t of tables as Record<string, unknown>[]) {
+      const id = t.id as string;
+      const data = {
+        roomId,
+        name: t.name as string,
+        capacity: t.capacity as number,
+        shape: (t.shape as string) ?? "round",
+        x: t.x as number,
+        y: t.y as number,
+        width: (t.width as number) ?? 90,
+        height: (t.height as number) ?? 90,
+        rotation: (t.rotation as number) ?? 0,
+      };
+
+      if (id && !id.startsWith("new-") && existingIds.includes(id)) {
+        await tx.table.update({ where: { id }, data });
+      } else {
+        await tx.table.create({ data });
+      }
     }
   });
 

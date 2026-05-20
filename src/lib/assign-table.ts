@@ -4,11 +4,6 @@ import { isWeekend } from "./slots";
 
 const MEAL_DURATION_MIN = 105;
 
-const WEEKEND_TURNS = [
-  { start: "19:00", end: "21:00" },
-  { start: "21:00", end: "23:00" },
-];
-
 function parseTime(t: string): Date {
   return parse(t, "HH:mm", new Date(0));
 }
@@ -17,6 +12,29 @@ function getTurnIndex(time: string): number {
   const t = parseTime(time);
   const turn1End = parseTime("21:00");
   return isBefore(t, turn1End) ? 0 : 1;
+}
+
+function tableOccupiedByRes(
+  tableId: string,
+  res: { time: string; tableId: string | null; extraTableIds: string[] }
+): boolean {
+  return res.tableId === tableId || (res.extraTableIds ?? []).includes(tableId);
+}
+
+function timesConflict(
+  aTime: string,
+  bTime: string,
+  weekend: boolean,
+  turnIdx: number
+): boolean {
+  if (weekend) {
+    return getTurnIndex(aTime) === turnIdx && getTurnIndex(bTime) === turnIdx;
+  }
+  const aStart = parseTime(aTime);
+  const aEnd = addMinutes(aStart, MEAL_DURATION_MIN);
+  const bStart = parseTime(bTime);
+  const bEnd = addMinutes(bStart, MEAL_DURATION_MIN);
+  return isBefore(aStart, bEnd) && isAfter(aEnd, bStart);
 }
 
 /**
@@ -42,28 +60,20 @@ export async function assignTable(
       status: { notIn: ["CANCELLED", "NO_SHOW", "CHECKED_OUT"] },
       ...(excludeReservationId ? { id: { not: excludeReservationId } } : {}),
     },
-    select: { time: true, tableId: true },
+    select: { time: true, tableId: true, extraTableIds: true },
   });
 
   const tables = await prisma.table.findMany({
-    where: { capacity: { gte: partySize } },
+    where: { capacity: { gte: partySize }, room: { active: true } },
     orderBy: { capacity: "asc" },
   });
 
   for (const table of tables) {
-    const hasConflict = existingRes.some((r) => {
-      if (r.tableId !== table.id) return false;
-      if (weekend) {
-        const rTurn = getTurnIndex(r.time);
-        return rTurn === turnIdx;
-      } else {
-        const rStart = parseTime(r.time);
-        const rEnd = addMinutes(rStart, MEAL_DURATION_MIN);
-        const slotStart = parseTime(time);
-        const slotEnd = addMinutes(slotStart, MEAL_DURATION_MIN);
-        return isBefore(rStart, slotEnd) && isAfter(rEnd, slotStart);
-      }
-    });
+    const hasConflict = existingRes.some(
+      (r) =>
+        tableOccupiedByRes(table.id, r) &&
+        timesConflict(r.time, time, weekend, turnIdx)
+    );
     if (!hasConflict) return table.id;
   }
 
@@ -81,9 +91,8 @@ export async function isTableFree(
   const weekend = isWeekend(date);
   const turnIdx = weekend ? getTurnIndex(time) : -1;
 
-  const conflicts = await prisma.reservation.findMany({
+  const existing = await prisma.reservation.findMany({
     where: {
-      tableId,
       date: {
         gte: new Date(dateStr),
         lt: new Date(format(addMinutes(new Date(dateStr), 24 * 60), "yyyy-MM-dd")),
@@ -91,19 +100,12 @@ export async function isTableFree(
       status: { notIn: ["CANCELLED", "NO_SHOW", "CHECKED_OUT"] },
       ...(excludeReservationId ? { id: { not: excludeReservationId } } : {}),
     },
-    select: { time: true },
+    select: { time: true, tableId: true, extraTableIds: true },
   });
 
-  for (const r of conflicts) {
-    if (weekend) {
-      if (getTurnIndex(r.time) === turnIdx) return false;
-    } else {
-      const rStart = parseTime(r.time);
-      const rEnd = addMinutes(rStart, MEAL_DURATION_MIN);
-      const slotStart = parseTime(time);
-      const slotEnd = addMinutes(slotStart, MEAL_DURATION_MIN);
-      if (isBefore(rStart, slotEnd) && isAfter(rEnd, slotStart)) return false;
-    }
-  }
-  return true;
+  return !existing.some(
+    (r) =>
+      tableOccupiedByRes(tableId, r) &&
+      timesConflict(r.time, time, weekend, turnIdx)
+  );
 }

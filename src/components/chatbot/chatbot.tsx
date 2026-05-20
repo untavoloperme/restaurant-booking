@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { parseNaturalDate, inferMealContext, formatDateIT } from "@/lib/date-parser";
+import { parseNaturalDate, formatDateIT } from "@/lib/date-parser";
 import { format, addDays } from "date-fns";
 import { Send, UtensilsCrossed, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,13 @@ interface Slot {
   shift: number;
 }
 
+interface HoursInfo {
+  open: boolean;
+  reason?: "closure" | "inactive";
+  note?: string | null;
+  shifts?: Array<{ start: string; end: string }>;
+}
+
 interface BookingData {
   date?: string;       // "YYYY-MM-DD"
   dateLabel?: string;
@@ -45,24 +52,38 @@ const QUICK_DATES = [
 ];
 
 export default function Chatbot() {
-  const [step, setStep] = useState<Step>("GREETING");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [step, setStep] = useState<Step>("ASK_DATE");
+  const [messages, setMessages] = useState<Message[]>([
+    { role: "bot", text: "Ciao! 👋 Sono qui per aiutarti a prenotare un tavolo. Quando vorresti venire?" },
+  ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [booking, setBooking] = useState<BookingData>({});
   const [availableSlots, setAvailableSlots] = useState<Slot[]>([]);
   const [showMoreSlots, setShowMoreSlots] = useState(false);
+  const [openQuickDates, setOpenQuickDates] = useState<typeof QUICK_DATES>([]);
   const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const today = new Date();
+    Promise.all(
+      QUICK_DATES.map(async (qd) => {
+        const dateStr = format(addDays(today, qd.days), "yyyy-MM-dd");
+        try {
+          const res = await fetch(`/api/public/hours?date=${dateStr}`);
+          const info: HoursInfo = await res.json();
+          return info.open ? qd : null;
+        } catch {
+          return qd;
+        }
+      })
+    ).then((results) => setOpenQuickDates(results.filter(Boolean) as typeof QUICK_DATES));
+  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => {
-    // Messaggio iniziale
-    addBotMessage("Ciao! 👋 Sono qui per aiutarti a prenotare un tavolo. Quando vorresti venire?");
-    setStep("ASK_DATE");
-  }, []);
 
   function addBotMessage(text: string) {
     setMessages((prev) => [...prev, { role: "bot", text }]);
@@ -72,12 +93,43 @@ export default function Chatbot() {
     setMessages((prev) => [...prev, { role: "user", text }]);
   }
 
+  async function selectDate(date: Date, label: string) {
+    const dateStr = format(date, "yyyy-MM-dd");
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/public/hours?date=${dateStr}`);
+      const info: HoursInfo = await res.json();
+
+      if (!info.open) {
+        const msg =
+          info.reason === "closure"
+            ? `Siamo chiusi il ${label}${info.note ? ` (${info.note})` : ""}. Scegli un altro giorno.`
+            : `Non siamo aperti quel giorno della settimana. Scegli un altro giorno.`;
+        addBotMessage(msg);
+        return;
+      }
+
+      const shiftsText = (info.shifts ?? []).map((s) => `${s.start}–${s.end}`).join(" e ");
+      setBooking((b) => ({ ...b, date: dateStr, dateLabel: label }));
+      setStep("ASK_PARTY_SIZE");
+      addBotMessage(
+        `Perfetto, ${label}!${shiftsText ? ` Siamo aperti ${shiftsText}.` : ""} Per quante persone?`
+      );
+      fetchSlots(dateStr, 4);
+    } catch {
+      setBooking((b) => ({ ...b, date: dateStr, dateLabel: label }));
+      setStep("ASK_PARTY_SIZE");
+      addBotMessage(`Perfetto, ${label}! Per quante persone?`);
+      fetchSlots(dateStr, 4);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleDateInput(raw: string) {
     const parsed = parseNaturalDate(raw);
     if (!parsed) {
-      addBotMessage(
-        "Non ho capito la data. Prova con 'domani sera', 'sabato', '3 giugno', ecc."
-      );
+      addBotMessage("Non ho capito la data. Prova con 'domani sera', 'sabato', '3 giugno', ecc.");
       return;
     }
 
@@ -88,25 +140,19 @@ export default function Chatbot() {
       return;
     }
 
-    const dateStr = format(parsed.date, "yyyy-MM-dd");
-    const dateLabel = formatDateIT(parsed.date);
-    const mealCtx = inferMealContext(raw);
-
-    setBooking((b) => ({ ...b, date: dateStr, dateLabel }));
-    setStep("ASK_PARTY_SIZE");
-    addBotMessage(`Perfetto, ${dateLabel}! Per quante persone?`);
-
-    // Precarica slot in background
-    fetchSlots(dateStr, 4);
+    await selectDate(parsed.date, formatDateIT(parsed.date));
   }
 
-  async function fetchSlots(date: string, partySize: number) {
+  async function fetchSlots(date: string, partySize: number): Promise<Slot[]> {
     try {
       const res = await fetch(`/api/public/availability?date=${date}&partySize=${partySize}`);
       const data = await res.json();
-      setAvailableSlots(Array.isArray(data.slots) ? data.slots : []);
+      const slots: Slot[] = Array.isArray(data.slots) ? data.slots : [];
+      setAvailableSlots(slots);
+      return slots;
     } catch {
       setAvailableSlots([]);
+      return [];
     }
   }
 
@@ -118,44 +164,27 @@ export default function Chatbot() {
     }
     if (n > 10) {
       addBotMessage(
-        "Per gruppi superiori a 10 persone ti invitiamo a contattarci direttamente per telefono. Per una prenotazione online posso gestire fino a 10 persone."
+        `Per gruppi di più di 10 persone ti chiediamo di chiamarci al 📞 0522-698020 e ti troveremo la soluzione migliore!`
       );
       return;
     }
 
     setBooking((b) => ({ ...b, partySize: n }));
 
-    // Carica slot per il numero corretto
     setLoading(true);
     addBotMessage(`Un momento, verifico la disponibilità per ${n} persone...`);
 
-    if (booking.date) {
-      await fetchSlots(booking.date, n);
-    }
+    const slots = booking.date ? await fetchSlots(booking.date, n) : [];
     setLoading(false);
 
-    if (availableSlots.length === 0 && booking.date) {
-      // Ricarica
-      try {
-        const res = await fetch(`/api/public/availability?date=${booking.date}&partySize=${n}`);
-        const data = await res.json();
-        const slots: Slot[] = Array.isArray(data.slots) ? data.slots : [];
-        setAvailableSlots(slots);
-        if (slots.length === 0) {
-          addBotMessage(
-            "Mi dispiace, non ci sono tavoli disponibili per quella data. Vuoi provare un'altra data?"
-          );
-          setStep("ASK_DATE");
-          return;
-        }
-      } catch {
-        addBotMessage("Errore nel recupero disponibilità. Riprova.");
-        return;
-      }
+    if (slots.length === 0) {
+      addBotMessage("Mi dispiace, non ci sono tavoli disponibili per quella data. Vuoi provare un'altra data?");
+      setStep("ASK_DATE");
+      return;
     }
 
     addBotMessage("Ecco gli orari disponibili. Scegli quello che preferisci:");
-    setStep("CONFIRM"); // Temporaneo, lo rimpostate dopo la scelta slot
+    setStep("CONFIRM");
   }
 
   async function handleSlotSelect(slot: Slot) {
@@ -285,9 +314,6 @@ Confermi?`.trim();
   }
 
   const visibleSlots = showMoreSlots ? availableSlots : availableSlots.slice(0, 6);
-  const showSlotPicker =
-    (step === "CONFIRM" && !booking.time) ||
-    (step === "ASK_PARTY_SIZE" && booking.partySize && availableSlots.length > 0);
   const showConfirmButtons = step === "CONFIRM" && !!booking.time && !!booking.phone;
 
   return (
@@ -326,21 +352,18 @@ Confermi?`.trim();
         {/* Quick date buttons (only at ASK_DATE step) */}
         {step === "ASK_DATE" && messages.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {QUICK_DATES.map((qd) => {
+            {openQuickDates.map((qd) => {
               const date = addDays(new Date(), qd.days);
-              const dateStr = format(date, "yyyy-MM-dd");
               return (
                 <Button
                   key={qd.label}
                   variant="outline"
                   size="sm"
                   className="text-xs"
+                  disabled={loading}
                   onClick={() => {
                     addUserMessage(qd.label);
-                    setBooking((b) => ({ ...b, date: dateStr, dateLabel: formatDateIT(date) }));
-                    setStep("ASK_PARTY_SIZE");
-                    addBotMessage(`Perfetto, ${formatDateIT(date)}! Per quante persone?`);
-                    fetchSlots(dateStr, 4);
+                    selectDate(date, formatDateIT(date));
                   }}
                 >
                   {qd.label}
@@ -351,7 +374,7 @@ Confermi?`.trim();
         )}
 
         {/* Slot picker */}
-        {step === "ASK_PARTY_SIZE" && booking.partySize && availableSlots.length > 0 && (
+        {(step === "ASK_PARTY_SIZE" || (step === "CONFIRM" && !booking.time)) && booking.partySize && availableSlots.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">Scegli un orario:</p>
             <div className="flex flex-wrap gap-2">

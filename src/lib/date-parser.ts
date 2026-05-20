@@ -62,7 +62,7 @@ export function parseNaturalDate(input: string, refDate: Date = new Date()): Par
   const date = startOfDay(best.start.date());
 
   // Estrai orario se presente nel testo
-  let time = extractTimeFromResult(best);
+  const time = extractTimeFromResult(best);
 
   // Se non c'è ora ma c'è indizio di sera/pranzo, lasciamo null (chatbot chiederà)
   // ma segnaliamo al caller tramite il contesto

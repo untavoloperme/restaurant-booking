@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ristorante La Pergola – Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Georgia', serif;
+      color: #1a1a1a;
+      background: #faf8f4;
+    }
+
+    /* NAV */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 48px;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid #e8e0d0;
+    }
+    nav .logo {
+      font-size: 1.25rem;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+      color: #8b4513;
+    }
+    nav ul {
+      list-style: none;
+      display: flex;
+      gap: 32px;
+    }
+    nav ul li a {
+      text-decoration: none;
+      color: #555;
+      font-size: 0.9rem;
+      letter-spacing: 0.03em;
+      transition: color 0.2s;
+    }
+    nav ul li a:hover { color: #8b4513; }
+
+    /* HERO */
+    .hero {
+      min-height: 92vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 80px 24px;
+      background: linear-gradient(160deg, #fff8f0 0%, #faf4ec 60%, #f5ede0 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 20% 60%, rgba(139,69,19,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(212,160,80,0.08) 0%, transparent 50%);
+    }
+    .hero-eyebrow {
+      font-size: 0.8rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #a0522d;
+      margin-bottom: 16px;
+    }
+    .hero h1 {
+      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      line-height: 1.15;
+      color: #2c1810;
+      max-width: 700px;
+      margin-bottom: 24px;
+    }
+    .hero p {
+      font-size: 1.15rem;
+      color: #6b5a4e;
+      max-width: 520px;
+      line-height: 1.7;
+      margin-bottom: 40px;
+    }
+    .hero-cta {
+      display: inline-block;
+      padding: 14px 36px;
+      background: #8b4513;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 0.95rem;
+      letter-spacing: 0.05em;
+      transition: background 0.2s, transform 0.2s;
+    }
+    .hero-cta:hover { background: #a0522d; transform: translateY(-1px); }
+
+    /* SECTIONS */
+    section {
+      padding: 96px 48px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .section-label {
+      font-size: 0.75rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #a0522d;
+      margin-bottom: 12px;
+    }
+    section h2 {
+      font-size: clamp(1.8rem, 3vw, 2.8rem);
+      color: #2c1810;
+      margin-bottom: 24px;
+    }
+    section p {
+      color: #6b5a4e;
+      line-height: 1.8;
+      max-width: 640px;
+      font-size: 1.05rem;
+    }
+
+    /* MENU PREVIEW */
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px;
+      margin-top: 40px;
+    }
+    .menu-card {
+      background: white;
+      border-radius: 12px;
+      padding: 28px 24px;
+      border: 1px solid #e8e0d0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .menu-card .dish-name {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #2c1810;
+      margin-bottom: 8px;
+    }
+    .menu-card .dish-desc {
+      font-size: 0.9rem;
+      color: #8a7060;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    .menu-card .dish-price {
+      font-size: 1rem;
+      color: #8b4513;
+      font-weight: bold;
+    }
+
+    /* DIVIDER */
+    .divider {
+      width: 60px;
+      height: 3px;
+      background: #c8902d;
+      margin: 0 auto 56px;
+      border-radius: 2px;
+    }
+
+    /* INFO BAR */
+    .info-bar {
+      background: #2c1810;
+      color: #f5ede0;
+      padding: 56px 48px;
+      text-align: center;
+    }
+    .info-bar h3 {
+      font-size: 1.5rem;
+      margin-bottom: 16px;
+    }
+    .info-bar p {
+      color: #c8b09a;
+      line-height: 1.8;
+    }
+    .info-columns {
+      display: flex;
+      justify-content: center;
+      gap: 80px;
+      margin-top: 40px;
+      flex-wrap: wrap;
+    }
+    .info-col .label {
+      font-size: 0.7rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #a0522d;
+      margin-bottom: 8px;
+    }
+    .info-col .value {
+      color: #f5ede0;
+      line-height: 1.7;
+    }
+
+    /* FOOTER */
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      background: #1a0f09;
+      color: #6b5a4e;
+      font-size: 0.85rem;
+    }
+
+    /* DEMO NOTICE */
+    .demo-notice {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1d4ed8;
+      color: white;
+      padding: 8px 20px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-family: monospace;
+      z-index: 200;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(29,78,216,0.4);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="demo-notice">🔵 Demo — la bolla di prenotazione è in basso a destra</div>
+
+  <nav>
+    <div class="logo">La Pergola</div>
+    <ul>
+      <li><a href="#">Menu</a></li>
+      <li><a href="#">Chi siamo</a></li>
+      <li><a href="#">Galleria</a></li>
+      <li><a href="#">Contatti</a></li>
+    </ul>
+  </nav>
+
+  <div class="hero">
+    <div class="hero-eyebrow">Ristorante dal 1987</div>
+    <h1>Un'esperienza culinaria senza tempo</h1>
+    <p>
+      Ingredienti del territorio, ricette tramandate di generazione in generazione,
+      un'atmosfera che sa di casa. Vieni a trovarci.
+    </p>
+    <a href="#" class="hero-cta">Scopri il menu</a>
+  </div>
+
+  <section>
+    <div class="section-label">I nostri piatti</div>
+    <h2>Il menu della tradizione</h2>
+    <p>Proponiamo solo ingredienti di stagione, selezionati ogni mattina dai produttori locali.</p>
+
+    <div class="menu-grid">
+      <div class="menu-card">
+        <div class="dish-name">Tagliolini al tartufo nero</div>
+        <div class="dish-desc">Pasta fresca all'uovo con tartufo nero di Norcia, burro di montagna e Parmigiano 36 mesi.</div>
+        <div class="dish-price">€ 22</div>
+      </div>
+      <div class="menu-card">
+        <div class="dish-name">Bistecca alla Fiorentina</div>
+        <div class="dish-desc">Chianina IGP, frollata 40 giorni, servita al sangue con sale di Cervia e olio extravergine.</div>
+        <div class="dish-price">€ 48 / kg</div>
+      </div>
+      <div class="menu-card">
+        <div class="dish-name">Risotto ai funghi porcini</div>
+        <div class="dish-desc">Carnaroli DOP, porcini freschi di montagna, brodo di carne, mantecato con Grana Padano.</div>
+        <div class="dish-price">€ 18</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <div class="info-bar">
+    <h3>Vieni a trovarci</h3>
+    <p>Prenota il tuo tavolo direttamente da qui, oppure chiamaci.</p>
+    <div class="info-columns">
+      <div class="info-col">
+        <div class="label">Indirizzo</div>
+        <div class="value">Via dei Tigli 14<br>Firenze, 50123</div>
+      </div>
+      <div class="info-col">
+        <div class="label">Orari</div>
+        <div class="value">Lun–Ven: 12:00–15:00 · 19:00–23:00<br>Sab–Dom: 19:00–23:00</div>
+      </div>
+      <div class="info-col">
+        <div class="label">Telefono</div>
+        <div class="value">+39 055 123 4567</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    &copy; 2024 La Pergola – P.IVA 01234567890 – Privacy Policy
+  </footer>
+
+  <script>
+    (function () {
+      var WIDGET_URL = window.location.origin + "/widget";
+
+      var style = document.createElement("style");
+      style.textContent = [
+        "#rb-bubble{position:fixed;z-index:9998;right:20px;bottom:20px;width:56px;height:56px;border-radius:50%;background:#2563eb;box-shadow:0 4px 16px rgba(0,0,0,.2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s}",
+        "#rb-bubble:hover{transform:scale(1.08);box-shadow:0 6px 20px rgba(0,0,0,.25)}",
+        "#rb-bubble svg{fill:#fff}",
+        "#rb-container{position:fixed;z-index:9999;right:16px;bottom:80px;width:min(400px,calc(100vw - 32px));height:min(600px,calc(100vh - 100px));background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.18);overflow:hidden;display:none;flex-direction:column;transform-origin:bottom right}",
+        "#rb-container.open{display:flex;animation:rb-in .2s ease}",
+        "@keyframes rb-in{from{opacity:0;transform:scale(.92) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}",
+        "#rb-iframe{width:100%;height:100%;border:none}",
+        "@media(max-width:480px){#rb-container{left:0;right:0;bottom:0;width:100vw;height:85vh;border-radius:16px 16px 0 0}}"
+      ].join("");
+      document.head.appendChild(style);
+
+      var bubble = document.createElement("div");
+      bubble.id = "rb-bubble";
+      bubble.setAttribute("aria-label", "Prenota un tavolo");
+      bubble.setAttribute("role", "button");
+      bubble.setAttribute("tabindex", "0");
+      bubble.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm6 12H6v-1c0-2 4-3.1 6-3.1s6 1.1 6 3.1v1z"/></svg>';
+      document.body.appendChild(bubble);
+
+      var container = document.createElement("div");
+      container.id = "rb-container";
+      document.body.appendChild(container);
+
+      var iframe = null;
+      var isOpen = false;
+
+      function toggle() {
+        isOpen = !isOpen;
+        if (isOpen) {
+          container.classList.add("open");
+          if (!iframe) {
+            iframe = document.createElement("iframe");
+            iframe.id = "rb-iframe";
+            iframe.src = WIDGET_URL;
+            iframe.allow = "clipboard-write";
+            container.appendChild(iframe);
+          }
+        } else {
+          container.classList.remove("open");
+        }
+      }
+
+      bubble.addEventListener("click", toggle);
+      bubble.addEventListener("keydown", function(e) {
+        if (e.key === "Enter" || e.key === " ") toggle();
+      });
+    })();
+  </script>
+
+</body>
+</html>

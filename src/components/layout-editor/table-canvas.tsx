@@ -1,22 +1,13 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
-import dynamic from "next/dynamic";
+import { useRef, useEffect, useState, useCallback, useLayoutEffect } from "react";
+import { Stage, Layer, Rect, Circle, Text, Transformer, Group } from "react-konva";
 import type Konva from "konva";
-
-const Stage = dynamic(() => import("react-konva").then((m) => m.Stage), { ssr: false });
-const Layer = dynamic(() => import("react-konva").then((m) => m.Layer), { ssr: false });
-const Rect = dynamic(() => import("react-konva").then((m) => m.Rect), { ssr: false });
-const Circle = dynamic(() => import("react-konva").then((m) => m.Circle), { ssr: false });
-const Ellipse = dynamic(() => import("react-konva").then((m) => m.Ellipse), { ssr: false });
-const Text = dynamic(() => import("react-konva").then((m) => m.Text), { ssr: false });
-const Transformer = dynamic(() => import("react-konva").then((m) => m.Transformer), { ssr: false });
-const Group = dynamic(() => import("react-konva").then((m) => m.Group), { ssr: false });
 
 export interface TableData {
   id: string;
   name: string;
-  capacity: 4 | 6 | 8 | 10;
+  capacity: number;
   shape: "round" | "square" | "rect";
   x: number;
   y: number;
@@ -30,6 +21,7 @@ interface Props {
   roomWidth: number;
   roomHeight: number;
   onTableMove: (id: string, x: number, y: number) => void;
+  onTableChange?: (id: string, data: Partial<TableData>) => void;
   onTableSelect: (id: string | null) => void;
   selectedId: string | null;
   readOnly?: boolean;
@@ -47,17 +39,29 @@ export default function TableCanvas({
   roomWidth,
   roomHeight,
   onTableMove,
+  onTableChange,
   onTableSelect,
   selectedId,
   readOnly = false,
 }: Props) {
   const transformerRef = useRef<Konva.Transformer | null>(null);
   const stageRef = useRef<Konva.Stage | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
+  const [containerWidth, setContainerWidth] = useState(roomWidth);
   const nodeRefs = useRef<Map<string, Konva.Group>>(new Map());
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      setContainerWidth(entries[0].contentRect.width);
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -78,13 +82,20 @@ export default function TableCanvas({
     else nodeRefs.current.delete(id);
   }, []);
 
-  if (!mounted) return null;
+  if (!mounted) return <div ref={containerRef} className="w-full" />;
+
+  const scale = Math.min(1, containerWidth / roomWidth);
+  const stageWidth = containerWidth;
+  const stageHeight = roomHeight * scale;
 
   return (
+    <div ref={containerRef} className="w-full">
     <Stage
       ref={stageRef}
-      width={roomWidth}
-      height={roomHeight}
+      width={stageWidth}
+      height={stageHeight}
+      scaleX={scale}
+      scaleY={scale}
       className="border border-dashed border-slate-300 rounded bg-slate-50"
       onClick={(e) => {
         if (e.target === e.target.getStage()) onTableSelect(null);
@@ -107,6 +118,20 @@ export default function TableCanvas({
               onTap={() => onTableSelect(table.id)}
               onDragEnd={(e) => {
                 onTableMove(table.id, e.target.x(), e.target.y());
+              }}
+              onTransformEnd={(e) => {
+                const node = e.target as Konva.Group;
+                const scaleX = node.scaleX();
+                const scaleY = node.scaleY();
+                node.scaleX(1);
+                node.scaleY(1);
+                onTableChange?.(table.id, {
+                  x: Math.round(node.x()),
+                  y: Math.round(node.y()),
+                  rotation: Math.round(node.rotation()),
+                  width: Math.max(40, Math.round(table.width * scaleX)),
+                  height: Math.max(40, Math.round(table.height * scaleY)),
+                });
               }}
             >
               {table.shape === "round" ? (
@@ -158,5 +183,6 @@ export default function TableCanvas({
         )}
       </Layer>
     </Stage>
+    </div>
   );
 }

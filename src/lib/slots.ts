@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { format, parseISO, addMinutes, isAfter, isBefore, parse } from "date-fns";
+import { format, addMinutes, isAfter, isBefore, parse } from "date-fns";
 
 export interface Shift {
   start: string; // "HH:mm"
@@ -10,11 +10,6 @@ export interface AvailableSlot {
   time: string; // "HH:mm"
   shift: number; // 0 o 1 (indice del turno per weekend)
 }
-
-const WEEKEND_TURNS: Shift[] = [
-  { start: "19:00", end: "21:00" },
-  { start: "21:00", end: "23:00" },
-];
 
 const MEAL_DURATION_MIN = 105; // durata media seduta feriale
 
@@ -57,12 +52,10 @@ export async function getAvailableSlots(
   if (!hoursConfig || !hoursConfig.active) return [];
 
   const weekend = isWeekend(date);
-  const turns: Shift[] = weekend
-    ? WEEKEND_TURNS
-    : (hoursConfig.shifts as unknown as Shift[]);
+  const turns: Shift[] = hoursConfig.shifts as unknown as Shift[];
   const interval = hoursConfig.slotInterval;
 
-  const allTables = await prisma.table.findMany({ select: { id: true, capacity: true } });
+  const allTables = await prisma.table.findMany({ where: { room: { active: true } }, select: { id: true, capacity: true } });
   if (allTables.length === 0) return [];
 
   // Prenotazioni esistenti per quella data (non cancellate)
@@ -184,9 +177,13 @@ export async function resolveSlot(
     select: { time: true },
   });
 
+  const dayOfWeek = date.getDay();
+  const hoursConfig = await prisma.openingHours.findUnique({ where: { dayOfWeek } });
+  const turns: Shift[] = (hoursConfig?.shifts as unknown as Shift[]) ?? [];
+  const turn = turns[turnIdx] ?? { start: "00:00", end: "23:59" };
+
   let effectiveTime = requestedTime;
   let count = existingRes.filter((r) => r.time === effectiveTime).length;
-  const turn = weekend ? WEEKEND_TURNS[turnIdx] : { start: "00:00", end: "23:59" };
 
   while (count >= 3) {
     effectiveTime = addMins(effectiveTime, 15);

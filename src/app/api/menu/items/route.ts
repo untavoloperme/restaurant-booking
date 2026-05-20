@@ -6,10 +6,13 @@ import { z } from "zod";
 const Schema = z.object({
   categoryId: z.string().min(1),
   name: z.string().min(1),
-  description: z.string().optional(),
+  description: z.string().nullable().optional(),
   price: z.number().positive(),
   available: z.boolean().default(true),
   order: z.number().int().default(0),
+  allergenIds: z.array(z.string()).default([]),
+  mealPeriod: z.enum(["ALWAYS", "LUNCH", "DINNER"]).default("ALWAYS"),
+  featured: z.boolean().default(false),
 });
 
 export async function POST(req: Request) {
