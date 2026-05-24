@@ -8,7 +8,7 @@ import {
   UtensilsCrossed, Settings, Users, ShieldCheck, ShieldOff,
   LogOut, Loader2, ToggleLeft, ToggleRight, Lock,
   GitBranch, RefreshCw, CheckCircle2, AlertCircle, Terminal,
-  Database, Trash2,
+  Database, Trash2, Globe,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -433,6 +433,16 @@ export default function BackstagePage() {
                   : <Terminal className="h-4 w-4" />}
                 Aggiorna sistema
               </button>
+
+              <a
+                href="/demo-site"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-emerald-700 text-emerald-400 hover:bg-emerald-600/10 transition-colors"
+              >
+                <Globe className="h-4 w-4" />
+                Sito demo con chatbot
+              </a>
             </div>
 
             {/* Deploy progress */}
