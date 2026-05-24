@@ -267,7 +267,6 @@ async function seedDemo() {
 
   const slots = ["12:30","13:00","13:30","19:30","20:00","20:30","21:00","21:30"];
   const sizes = [2, 2, 2, 4, 4, 6, 8];
-  const statuses = ["PENDING","PENDING","PENDING","ARRIVED","CHECKED_OUT","CANCELLED"];
 
   for (let dayOffset = -3; dayOffset <= 7; dayOffset++) {
     const date = addDays(today, dayOffset);
