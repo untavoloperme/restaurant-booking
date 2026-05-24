@@ -12,7 +12,8 @@ echo "==> [deploy] Pulling latest code..."
 git pull --ff-only
 
 echo "==> [deploy] Installing dependencies..."
-npm ci
+rm -rf node_modules
+npm install --legacy-peer-deps
 
 echo "==> [deploy] Applying database migrations..."
 npx prisma migrate deploy
