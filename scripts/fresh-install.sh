@@ -57,8 +57,12 @@ echo "  Porta app   : $PORT"
 echo "  Database    : $DB_NAME (utente: $DB_USER)"
 echo "  Admin email : $ADMIN_EMAIL"
 echo ""
-read -rp "$(echo -e "${YLW}Procedere con l'installazione? [s/N]${NC} ")" CONFIRM
-[[ "${CONFIRM,,}" == "s" ]] || { echo "Annullato."; exit 0; }
+if [[ -t 0 ]]; then
+  read -rp "$(echo -e "${YLW}Procedere con l'installazione? [s/N]${NC} ")" CONFIRM
+  [[ "${CONFIRM,,}" == "s" ]] || { echo "Annullato."; exit 0; }
+else
+  echo -e "${YLW}Esecuzione non interattiva (curl | bash) — proseguo automaticamente.${NC}"
+fi
 
 # ============================================================
 section "1/8 — Dipendenze di sistema"
