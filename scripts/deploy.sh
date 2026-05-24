@@ -16,10 +16,10 @@ rm -rf node_modules
 npm install --legacy-peer-deps
 
 echo "==> [deploy] Applying database migrations..."
-npx prisma migrate deploy
+./node_modules/.bin/prisma migrate deploy
 
 echo "==> [deploy] Generating Prisma client..."
-npx prisma generate
+./node_modules/.bin/prisma generate
 
 echo "==> [deploy] Pulizia cache build..."
 rm -rf .next

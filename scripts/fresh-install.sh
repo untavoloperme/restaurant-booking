@@ -179,12 +179,12 @@ log "npm ci..."
 npm ci --silent
 
 log "Prisma migrate + seed..."
-npx prisma migrate deploy
-npx prisma generate
+./node_modules/.bin/prisma migrate deploy
+./node_modules/.bin/prisma generate
 npm run seed
 
 log "Creazione SuperAdmin backstage..."
-npx tsx scripts/create-superadmin.ts
+./node_modules/.bin/tsx scripts/create-superadmin.ts
 
 log "Build Next.js..."
 npm run build
