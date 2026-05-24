@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 const PUBLIC_KEYS = [
   "orders.show_status_customer",
   "ordering.enabled",
