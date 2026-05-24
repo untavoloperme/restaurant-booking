@@ -20,6 +20,9 @@ npx prisma migrate deploy
 echo "==> [deploy] Generating Prisma client..."
 npx prisma generate
 
+echo "==> [deploy] Pulizia cache build..."
+rm -rf .next
+
 echo "==> [deploy] Building application..."
 npm run build
 
