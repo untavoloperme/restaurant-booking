@@ -241,6 +241,21 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 log "Nginx configurato."
 
+# Firewall (ufw)
+if command -v ufw &>/dev/null; then
+  log "Configurazione firewall (ufw)..."
+  ufw --force reset
+  ufw default deny incoming
+  ufw default allow outgoing
+  ufw allow ssh
+  ufw allow 80/tcp
+  ufw allow 443/tcp
+  ufw --force enable
+  log "Firewall attivato: SSH, 80, 443 aperti."
+else
+  warn "ufw non trovato — installa e configura il firewall manualmente."
+fi
+
 # Certbot SSL (solo se dominio reale)
 if [[ "$DOMAIN" != "localhost" && "$DOMAIN" != *"127."* ]]; then
   log "Richiesta certificato SSL per $DOMAIN..."
