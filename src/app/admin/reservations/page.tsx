@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { useTick, formatDuration } from "@/hooks/use-tick";
-import { UserCheck, LogOut, ArrowRightLeft, Plus, RefreshCw, Phone, Users, Clock, Loader2, Link2 } from "lucide-react";
+import { UserCheck, LogOut, ArrowRightLeft, Plus, RefreshCw, Phone, Users, Clock, Loader2, Link2, Search } from "lucide-react";
 
 interface Table {
   id: string;
@@ -60,6 +60,7 @@ export default function ReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [dateFilter, setDateFilter] = useState(format(new Date(), "yyyy-MM-dd"));
   const [statusFilter, setStatusFilter] = useState("PENDING,ARRIVED");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [moveDialog, setMoveDialog] = useState<{ open: boolean; reservation: Reservation | null }>({ open: false, reservation: null });
   const [availableTables, setAvailableTables] = useState<Table[]>([]);
@@ -284,6 +285,16 @@ export default function ReservationsPage() {
     fetchReservations();
   }
 
+  const q = searchQuery.trim().toLowerCase();
+  const filtered = q
+    ? reservations.filter(
+        (r) =>
+          r.customerName.toLowerCase().includes(q) ||
+          r.phone.includes(q) ||
+          r.code.toLowerCase().includes(q)
+      )
+    : reservations;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -320,21 +331,30 @@ export default function ReservationsPage() {
             <SelectItem value="NO_SHOW">No show</SelectItem>
           </SelectContent>
         </Select>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Cerca cliente, telefono, codice…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8 w-64"
+          />
+        </div>
       </div>
 
       {/* Statistiche giornaliere */}
-      {reservations.length > 0 && (() => {
-        const active = reservations.filter((r) => !["CANCELLED", "NO_SHOW"].includes(r.status));
+      {filtered.length > 0 && (() => {
+        const active = filtered.filter((r) => !["CANCELLED", "NO_SHOW"].includes(r.status));
         const totalPeople = active.reduce((s, r) => s + r.partySize, 0);
         const byStatus = Object.entries(STATUS_META).map(([key, meta]) => ({
           key,
           meta,
-          count: reservations.filter((r) => r.status === key).length,
+          count: filtered.filter((r) => r.status === key).length,
         })).filter((s) => s.count > 0);
 
         return (
           <div className="flex flex-wrap items-center gap-3 px-3 py-2 bg-slate-50 border rounded-lg text-sm">
-            <span className="font-semibold text-slate-700">{reservations.length} prenotazioni</span>
+            <span className="font-semibold text-slate-700">{filtered.length} prenotazioni</span>
             <span className="text-slate-400">·</span>
             <span className="flex items-center gap-1 text-slate-700">
               <Users className="h-3.5 w-3.5" />
@@ -353,13 +373,13 @@ export default function ReservationsPage() {
       })()}
 
       {/* Lista */}
-      {reservations.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           Nessuna prenotazione trovata per i filtri selezionati.
         </div>
       ) : (
         <div className="space-y-3">
-          {reservations.map((r, idx) => {
+          {filtered.map((r, idx) => {
             const sm = STATUS_META[r.status] ?? { label: r.status, variant: "outline" as const };
             const dateLabel = format(parseISO(r.date.split("T")[0]), "EEE d MMM", { locale: it });
 
