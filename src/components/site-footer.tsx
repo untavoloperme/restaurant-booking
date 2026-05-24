@@ -1,9 +1,16 @@
 export default function SiteFooter({ dark = false }: { dark?: boolean }) {
   return (
     <footer
-      className="w-full flex items-center justify-center py-2.5 px-4"
+      className="w-full flex flex-col items-center justify-center gap-1.5 py-3 px-4"
       style={dark ? { borderTop: "1px solid rgba(255,255,255,0.07)" } : { borderTop: "1px solid rgba(0,0,0,0.07)" }}
     >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/untavoloperlogo.svg"
+        alt="Un Tavolo Per"
+        className="h-8 w-auto object-contain"
+        style={dark ? { filter: "brightness(0) invert(1)", opacity: 0.5 } : { opacity: 0.4 }}
+      />
       <p className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>
         Powered by{" "}
         <a
