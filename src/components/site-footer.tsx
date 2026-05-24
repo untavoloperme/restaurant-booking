@@ -8,7 +8,7 @@ export default function SiteFooter({ dark = false }: { dark?: boolean }) {
       <img
         src="/untavoloperlogo.svg"
         alt="Un Tavolo Per"
-        className="h-8 w-auto object-contain"
+        className="h-24 w-auto object-contain"
         style={dark ? { filter: "brightness(0) invert(1)", opacity: 0.5 } : { opacity: 0.4 }}
       />
       <p className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>
