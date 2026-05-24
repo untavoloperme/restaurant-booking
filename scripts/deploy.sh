@@ -13,7 +13,7 @@ git pull --ff-only
 
 echo "==> [deploy] Installing dependencies..."
 rm -rf node_modules
-npm install --legacy-peer-deps
+NODE_ENV=development npm install --legacy-peer-deps
 
 echo "==> [deploy] Applying database migrations..."
 ./node_modules/.bin/prisma migrate deploy
