@@ -176,7 +176,7 @@ section "5/8 — Dipendenze Node.js e build"
 # ============================================================
 cd "$APP_DIR"
 log "npm ci..."
-npm ci --omit=dev --silent
+npm ci --silent
 
 log "Prisma migrate + seed..."
 npx prisma migrate deploy
