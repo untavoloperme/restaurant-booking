@@ -272,7 +272,8 @@ export default function FloorView() {
                 const colors = TABLE_COLORS[status] || TABLE_COLORS.FREE;
                 // Mostra ordini solo per tavoli ARRIVED (non per checkout o liberi)
                 const tableOrders = status === "ARRIVED" ? ordersByTable[table.id] : undefined;
-                const mainLabel = `${table.name}\n${table.capacity}p${reservation ? `\n${reservation.time}` : ""}`;
+                const firstName = reservation ? reservation.customerName.split(" ")[0] : "";
+                const mainLabel = `${table.name}\n${table.capacity}p${reservation ? `\n${firstName}\n${reservation.time}` : ""}`;
 
                 return (
                   <Group
