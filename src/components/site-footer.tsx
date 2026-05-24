@@ -1,3 +1,5 @@
+import packageJson from "../../package.json";
+
 export default function SiteFooter({ dark = false, showLogo = false }: { dark?: boolean; showLogo?: boolean }) {
   return (
     <footer
@@ -28,6 +30,10 @@ export default function SiteFooter({ dark = false, showLogo = false }: { dark?: 
         >
           info@tekdata.it
         </a>
+        {" "}·{" "}
+        <span className={dark ? "text-white/30" : "text-slate-400"}>
+          v{packageJson.version}
+        </span>
       </p>
     </footer>
   );
