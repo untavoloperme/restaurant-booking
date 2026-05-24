@@ -63,6 +63,7 @@ export default function ReservationsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [calendarMonth, setCalendarMonth] = useState(format(new Date(), "yyyy-MM"));
   const [calendarCounts, setCalendarCounts] = useState<Record<string, number>>({});
+  const [calendarOpen, setCalendarOpen] = useState(true);
   const [loading, setLoading] = useState(false);
   const [moveDialog, setMoveDialog] = useState<{ open: boolean; reservation: Reservation | null }>({ open: false, reservation: null });
   const [availableTables, setAvailableTables] = useState<Table[]>([]);
@@ -331,78 +332,99 @@ export default function ReservationsPage() {
         const today = format(new Date(), "yyyy-MM-dd");
         const DAY_LABELS = ["Lu", "Ma", "Me", "Gi", "Ve", "Sa", "Do"];
         return (
-          <div className="bg-white border rounded-xl p-4 shadow-sm">
-            {/* Navigazione mese */}
-            <div className="flex items-center justify-between mb-3">
-              <button
-                onClick={() => {
-                  const prev = format(addMonths(firstDay, -1), "yyyy-MM");
-                  setCalendarMonth(prev);
-                }}
-                className="p-1 rounded hover:bg-slate-100 transition-colors"
-              >
-                <ChevronLeft className="h-4 w-4 text-muted-foreground" />
-              </button>
-              <span className="text-sm font-semibold capitalize">
-                {format(firstDay, "MMMM yyyy", { locale: it })}
-              </span>
-              <button
-                onClick={() => {
-                  const next = format(addMonths(firstDay, 1), "yyyy-MM");
-                  setCalendarMonth(next);
-                }}
-                className="p-1 rounded hover:bg-slate-100 transition-colors"
-              >
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              </button>
+          <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
+            {/* Intestazione sempre visibile */}
+            <div className="flex items-center justify-between px-4 py-2.5">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const prev = format(addMonths(firstDay, -1), "yyyy-MM");
+                    setCalendarMonth(prev);
+                  }}
+                  className="p-1 rounded hover:bg-slate-100 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+                </button>
+                <span className="text-sm font-semibold capitalize w-36 text-center">
+                  {format(firstDay, "MMMM yyyy", { locale: it })}
+                </span>
+                <button
+                  onClick={() => {
+                    const next = format(addMonths(firstDay, 1), "yyyy-MM");
+                    setCalendarMonth(next);
+                  }}
+                  className="p-1 rounded hover:bg-slate-100 transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                {!calendarOpen && (
+                  <span className="text-xs text-muted-foreground">
+                    {format(parseISO(dateFilter), "d MMMM yyyy", { locale: it })}
+                  </span>
+                )}
+                <button
+                  onClick={() => setCalendarOpen((o) => !o)}
+                  className="p-1 rounded hover:bg-slate-100 transition-colors text-muted-foreground hover:text-slate-700"
+                  title={calendarOpen ? "Comprimi calendario" : "Espandi calendario"}
+                >
+                  <ChevronLeft
+                    className={`h-4 w-4 transition-transform duration-200 ${calendarOpen ? "-rotate-90" : "rotate-90"}`}
+                  />
+                </button>
+              </div>
             </div>
 
-            {/* Intestazione giorni */}
-            <div className="grid grid-cols-7 mb-1">
-              {DAY_LABELS.map((d) => (
-                <div key={d} className="text-center text-xs text-muted-foreground font-medium py-1">
-                  {d}
+            {/* Griglia collassabile */}
+            {calendarOpen && (
+              <div className="px-4 pb-4 border-t">
+                {/* Intestazione giorni */}
+                <div className="grid grid-cols-7 mt-2 mb-1">
+                  {DAY_LABELS.map((d) => (
+                    <div key={d} className="text-center text-xs text-muted-foreground font-medium py-1">
+                      {d}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* Griglia giorni */}
-            <div className="grid grid-cols-7 gap-y-0.5">
-              {Array.from({ length: startOffset }, (_, i) => (
-                <div key={`e${i}`} />
-              ))}
-              {Array.from({ length: daysInMonth }, (_, i) => {
-                const day = i + 1;
-                const dateStr = `${calYear}-${String(calMonthIdx).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                const isSelected = dateStr === dateFilter;
-                const isToday = dateStr === today;
-                const count = calendarCounts[dateStr] ?? 0;
-                return (
-                  <button
-                    key={day}
-                    onClick={() => {
-                      setDateFilter(dateStr);
-                    }}
-                    className={`relative flex flex-col items-center justify-center rounded-lg h-9 text-sm transition-colors ${
-                      isSelected
-                        ? "bg-primary text-primary-foreground font-bold"
-                        : isToday
-                        ? "bg-slate-100 font-semibold text-slate-800"
-                        : "hover:bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    {day}
-                    {count > 0 && (
-                      <span
-                        className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full ${
-                          isSelected ? "bg-primary-foreground/70" : "bg-primary"
+                {/* Giorni */}
+                <div className="grid grid-cols-7 gap-y-0.5">
+                  {Array.from({ length: startOffset }, (_, i) => (
+                    <div key={`e${i}`} />
+                  ))}
+                  {Array.from({ length: daysInMonth }, (_, i) => {
+                    const day = i + 1;
+                    const dateStr = `${calYear}-${String(calMonthIdx).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                    const isSelected = dateStr === dateFilter;
+                    const isToday = dateStr === today;
+                    const count = calendarCounts[dateStr] ?? 0;
+                    return (
+                      <button
+                        key={day}
+                        onClick={() => setDateFilter(dateStr)}
+                        className={`relative flex flex-col items-center justify-center rounded-lg h-9 text-sm transition-colors ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground font-bold"
+                            : isToday
+                            ? "bg-slate-100 font-semibold text-slate-800"
+                            : "hover:bg-slate-50 text-slate-700"
                         }`}
-                      />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+                      >
+                        {day}
+                        {count > 0 && (
+                          <span
+                            className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full ${
+                              isSelected ? "bg-primary-foreground/70" : "bg-primary"
+                            }`}
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}
