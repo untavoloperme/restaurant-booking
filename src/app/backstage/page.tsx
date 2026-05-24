@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -52,7 +52,15 @@ export default function BackstagePage() {
   const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [deploying, setDeploying] = useState(false);
-  const [deployMsg, setDeployMsg] = useState("");
+
+  // Deploy progress
+  const [deployRunning, setDeployRunning] = useState(false);
+  const [deploySteps, setDeploySteps] = useState<{ key: string; label: string; status: string }[]>([]);
+  const [deployLines, setDeployLines] = useState<string[]>([]);
+  const [deployDone, setDeployDone] = useState(false);
+  const [deployError, setDeployError] = useState(false);
+  const deployPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const logBoxRef = useRef<HTMLDivElement>(null);
 
   const [logoutLoading, setLogoutLoading] = useState(false);
 
@@ -63,6 +71,18 @@ export default function BackstagePage() {
   const [demoMsg, setDemoMsg] = useState("");
 
   const didFetch = useRef(false);
+
+  // Auto-scroll log to bottom on new lines
+  useEffect(() => {
+    if (logBoxRef.current) {
+      logBoxRef.current.scrollTop = logBoxRef.current.scrollHeight;
+    }
+  }, [deployLines]);
+
+  // Cleanup poll on unmount
+  useEffect(() => {
+    return () => { if (deployPollRef.current) clearTimeout(deployPollRef.current); };
+  }, []);
 
   useEffect(() => {
     if (didFetch.current) return;
@@ -118,20 +138,62 @@ export default function BackstagePage() {
     }
   }
 
+  const startDeployPolling = useCallback(() => {
+    async function poll() {
+      try {
+        const res = await fetch("/api/backstage/deploy-log");
+        const data = await res.json() as {
+          exists: boolean;
+          steps: { key: string; label: string; status: string }[];
+          lines: string[];
+          done: boolean;
+          hasError: boolean;
+        };
+        if (data.steps?.length) setDeploySteps(data.steps);
+        if (data.lines?.length) setDeployLines(data.lines);
+        if (data.done) {
+          setDeployDone(true);
+          setDeployRunning(false);
+          // Reload sysInfo to show new version
+          fetch("/api/backstage/system").then(r => r.json()).then(setSysInfo).catch(() => {});
+          return;
+        }
+        if (data.hasError) {
+          setDeployError(true);
+          setDeployRunning(false);
+          return;
+        }
+      } catch { /* continua */ }
+      deployPollRef.current = setTimeout(poll, 2000);
+    }
+    poll();
+  }, []);
+
   async function triggerDeploy() {
     if (!confirm("Avviare il deploy? Il sistema eseguirà git pull → npm ci → build → pm2 reload. Potrebbe richiedere qualche minuto.")) return;
     setDeploying(true);
-    setDeployMsg("");
+    setDeploySteps([]);
+    setDeployLines([]);
+    setDeployDone(false);
+    setDeployError(false);
+    setDeployRunning(true);
+    if (deployPollRef.current) clearTimeout(deployPollRef.current);
     try {
       const res = await fetch("/api/backstage/system", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "deploy" }),
       });
-      const data = await res.json() as { ok?: boolean; message?: string; error?: string };
-      setDeployMsg(data.message ?? data.error ?? "Avviato");
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (data.ok) {
+        startDeployPolling();
+      } else {
+        setDeployError(true);
+        setDeployRunning(false);
+      }
     } catch {
-      setDeployMsg("Errore di rete");
+      setDeployError(true);
+      setDeployRunning(false);
     } finally {
       setDeploying(false);
     }
@@ -352,7 +414,7 @@ export default function BackstagePage() {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={checkForUpdate}
-                disabled={checkingUpdate}
+                disabled={checkingUpdate || deployRunning}
                 className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:border-slate-600 transition-colors disabled:opacity-50"
               >
                 {checkingUpdate
@@ -363,20 +425,77 @@ export default function BackstagePage() {
 
               <button
                 onClick={triggerDeploy}
-                disabled={deploying}
+                disabled={deploying || deployRunning}
                 className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-indigo-600 text-indigo-300 hover:bg-indigo-600/20 transition-colors disabled:opacity-50"
               >
-                {deploying
+                {(deploying || deployRunning)
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <Terminal className="h-4 w-4" />}
                 Aggiorna sistema
               </button>
             </div>
 
-            {deployMsg && (
-              <p className="text-xs text-slate-300 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700 font-mono">
-                {deployMsg}
-              </p>
+            {/* Deploy progress */}
+            {(deployRunning || deploySteps.length > 0) && (
+              <div className="space-y-3 border-t border-slate-700/50 pt-4">
+                {/* Steps */}
+                <div className="flex flex-wrap gap-2">
+                  {deploySteps.map((step) => (
+                    <span
+                      key={step.key}
+                      className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium transition-all ${
+                        step.status === "done"    ? "bg-emerald-500/15 text-emerald-400" :
+                        step.status === "running" ? "bg-indigo-500/20 text-indigo-300"  :
+                        step.status === "error"   ? "bg-red-500/15 text-red-400"        :
+                                                    "bg-slate-800 text-slate-600"
+                      }`}
+                    >
+                      {step.status === "done"    && <CheckCircle2 className="h-3 w-3" />}
+                      {step.status === "running" && <Loader2 className="h-3 w-3 animate-spin" />}
+                      {step.status === "error"   && <AlertCircle className="h-3 w-3" />}
+                      {step.status === "pending" && <span className="h-3 w-3 rounded-full border border-slate-600 inline-block" />}
+                      {step.label}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Log terminal */}
+                <div
+                  ref={logBoxRef}
+                  className="h-52 overflow-y-auto bg-black/70 rounded-lg border border-slate-800 p-3 font-mono text-xs leading-relaxed space-y-px"
+                >
+                  {deployLines.map((line, i) => (
+                    <div
+                      key={i}
+                      className={
+                        line.includes("ERROR")        ? "text-red-400" :
+                        line.includes("==> [deploy]") ? "text-indigo-300" :
+                        line.includes("warn")         ? "text-amber-400" :
+                                                        "text-slate-500"
+                      }
+                    >
+                      {line}
+                    </div>
+                  ))}
+                  {deployRunning && (
+                    <div className="text-slate-600 animate-pulse select-none">▋</div>
+                  )}
+                </div>
+
+                {/* Result */}
+                {deployDone && (
+                  <div className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 rounded-lg px-3 py-2 border border-emerald-500/20">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    Deploy completato! La versione è stata aggiornata.
+                  </div>
+                )}
+                {deployError && (
+                  <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 rounded-lg px-3 py-2 border border-red-500/20">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    Deploy interrotto — controlla il log sopra.
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </section>

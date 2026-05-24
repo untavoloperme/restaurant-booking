@@ -66,14 +66,14 @@ export async function POST(req: Request) {
   }
 
   const deployScript = `${process.cwd()}/scripts/deploy.sh`;
+  const deployLog = "/tmp/restaurant-deploy.log";
 
-  // Run deploy in background — stream log lines via SSE isn't needed here,
-  // we just fire-and-forget and return immediately
   try {
-    execSync(`bash ${deployScript} >> /root/.pm2/logs/deploy.log 2>&1 &`, {
+    // Svuota il log precedente, poi avvia deploy in background
+    execSync(`> ${deployLog} && bash ${deployScript} >> ${deployLog} 2>&1 &`, {
       cwd: process.cwd(),
     });
-    return NextResponse.json({ ok: true, message: "Deploy avviato in background. Controlla i log." });
+    return NextResponse.json({ ok: true, message: "Deploy avviato." });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
