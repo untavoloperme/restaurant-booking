@@ -8,6 +8,7 @@ import {
   UtensilsCrossed, Settings, Users, ShieldCheck, ShieldOff,
   LogOut, Loader2, ToggleLeft, ToggleRight, Lock,
   GitBranch, RefreshCw, CheckCircle2, AlertCircle, Terminal,
+  Database, Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -54,6 +55,13 @@ export default function BackstagePage() {
   const [deployMsg, setDeployMsg] = useState("");
 
   const [logoutLoading, setLogoutLoading] = useState(false);
+
+  // Demo data state
+  const [demoSeeded, setDemoSeeded] = useState(false);
+  const [demoSeededAt, setDemoSeededAt] = useState<string | null>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoMsg, setDemoMsg] = useState("");
+
   const didFetch = useRef(false);
 
   useEffect(() => {
@@ -64,11 +72,14 @@ export default function BackstagePage() {
       fetch("/api/backstage/modules").then(r => r.json()),
       fetch("/api/backstage/me").then(r => r.json()),
       fetch("/api/backstage/system").then(r => r.json()),
-    ]).then(([mods, me, sys]) => {
+      fetch("/api/backstage/demo").then(r => r.json()),
+    ]).then(([mods, me, sys, demo]) => {
       setModules(mods);
       setSaEmail(me.email ?? "");
       setTotpEnabled(me.totpEnabled ?? false);
       setSysInfo(sys);
+      setDemoSeeded(demo.seeded ?? false);
+      setDemoSeededAt(demo.seededAt ?? null);
     }).catch(() => router.push("/backstage/login"));
   }, [router]);
 
@@ -123,6 +134,32 @@ export default function BackstagePage() {
       setDeployMsg("Errore di rete");
     } finally {
       setDeploying(false);
+    }
+  }
+
+  // Demo handlers
+  async function handleDemo(action: "seed" | "clean") {
+    const msg = action === "seed"
+      ? "Importare i dati demo? Verranno creati sale, menu, prenotazioni e utenti di esempio."
+      : "Rimuovere tutti i dati demo? L'operazione è irreversibile.";
+    if (!confirm(msg)) return;
+    setDemoLoading(true);
+    setDemoMsg("");
+    try {
+      const res = await fetch("/api/backstage/demo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json() as { ok?: boolean; message?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Errore");
+      setDemoMsg(data.message ?? "OK");
+      setDemoSeeded(action === "seed");
+      setDemoSeededAt(action === "seed" ? new Date().toISOString() : null);
+    } catch (e) {
+      setDemoMsg((e as Error).message);
+    } finally {
+      setDemoLoading(false);
     }
   }
 
@@ -339,6 +376,57 @@ export default function BackstagePage() {
             {deployMsg && (
               <p className="text-xs text-slate-300 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700 font-mono">
                 {deployMsg}
+              </p>
+            )}
+          </div>
+        </section>
+
+        {/* Dati Demo */}
+        <section>
+          <h2 className="text-lg font-bold mb-4">Dati Demo</h2>
+          <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-5 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold">Ambiente dimostrativo</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {demoSeeded
+                    ? `Dati demo presenti — importati il ${new Date(demoSeededAt!).toLocaleDateString("it-IT")}`
+                    : "Importa dati realistici per dimostrare il sistema: sale, menu, prenotazioni e utenti."}
+                </p>
+              </div>
+              <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${
+                demoSeeded ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-800 text-slate-500"
+              }`}>
+                {demoSeeded ? "Attivi" : "Vuoto"}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {!demoSeeded && (
+                <button
+                  onClick={() => handleDemo("seed")}
+                  disabled={demoLoading}
+                  className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-indigo-600 text-indigo-300 hover:bg-indigo-600/20 transition-colors disabled:opacity-50"
+                >
+                  {demoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+                  Importa dati demo
+                </button>
+              )}
+              {demoSeeded && (
+                <button
+                  onClick={() => handleDemo("clean")}
+                  disabled={demoLoading}
+                  className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-red-700 text-red-400 hover:bg-red-600/10 transition-colors disabled:opacity-50"
+                >
+                  {demoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  Pulisci dati demo
+                </button>
+              )}
+            </div>
+
+            {demoMsg && (
+              <p className="text-xs text-slate-300 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700 font-mono">
+                {demoMsg}
               </p>
             )}
           </div>
