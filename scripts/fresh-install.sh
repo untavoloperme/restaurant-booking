@@ -183,6 +183,9 @@ npx prisma migrate deploy
 npx prisma generate
 npm run seed
 
+log "Creazione SuperAdmin backstage..."
+npx tsx scripts/create-superadmin.ts
+
 log "Build Next.js..."
 npm run build
 
@@ -272,10 +275,13 @@ echo -e "${GRN}╔════════════════════�
 echo -e "${GRN}║         INSTALLAZIONE COMPLETATA                 ║${NC}"
 echo -e "${GRN}╚══════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "  URL app      : ${CYN}${NEXTAUTH_URL_FULL}${NC}"
-echo -e "  Admin email  : ${CYN}${ADMIN_EMAIL}${NC}"
-echo -e "  Admin pass   : ${YLW}${ADMIN_PASS}${NC}  ← SALVA QUESTA PASSWORD"
-echo -e "  DB password  : ${YLW}${DB_PASS}${NC}  ← SALVATA IN .env"
+echo -e "  URL app         : ${CYN}${NEXTAUTH_URL_FULL}${NC}"
+echo -e "  Admin email     : ${CYN}${ADMIN_EMAIL}${NC}"
+echo -e "  Admin pass      : ${YLW}${ADMIN_PASS}${NC}  ← SALVA QUESTA PASSWORD"
+echo -e "  Backstage URL   : ${CYN}${NEXTAUTH_URL_FULL}/backstage/login${NC}"
+echo -e "  Backstage email : ${CYN}${SA_EMAIL}${NC}"
+echo -e "  Backstage pass  : ${YLW}SuperAdmin1234!${NC}  ← CAMBIA SUBITO"
+echo -e "  DB password     : ${YLW}${DB_PASS}${NC}  ← SALVATA IN .env"
 echo ""
 echo -e "  Comandi utili:"
 echo -e "    pm2 logs ${APP_NAME}"
@@ -290,6 +296,9 @@ Installazione: $(date)
 URL: ${NEXTAUTH_URL_FULL}
 Admin email: ${ADMIN_EMAIL}
 Admin password: ${ADMIN_PASS}
+Backstage URL: ${NEXTAUTH_URL_FULL}/backstage/login
+Backstage email: ${SA_EMAIL}
+Backstage password: SuperAdmin1234! (CAMBIA SUBITO)
 DB name: ${DB_NAME}
 DB user: ${DB_USER}
 DB password: ${DB_PASS}
