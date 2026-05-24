@@ -217,7 +217,7 @@ export default function LoginPage() {
       </div>
 
       </div>{/* fine contenuto centrato */}
-      <SiteFooter dark />
+      <SiteFooter dark showLogo />
     </div>
   );
 }

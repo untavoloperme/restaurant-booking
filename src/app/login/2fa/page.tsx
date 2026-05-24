@@ -141,7 +141,7 @@ export default function TwoFactorPage() {
         </div>
       </div>
       </div>{/* fine contenuto centrato */}
-      <SiteFooter dark />
+      <SiteFooter dark showLogo />
     </div>
   );
 }
