@@ -10,7 +10,7 @@ echo "==> [deploy] Pulling latest code..."
 git pull --ff-only
 
 echo "==> [deploy] Installing dependencies..."
-npm ci --omit=dev
+npm ci
 
 echo "==> [deploy] Applying database migrations..."
 npx prisma migrate deploy
