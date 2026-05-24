@@ -79,7 +79,7 @@ apt-get install -y -qq \
 # Node.js 20 LTS (via NodeSource)
 if ! command -v node &>/dev/null || [[ "$(node -e 'process.exit(+process.version.slice(1).split(".")[0] < 20)')" ]]; then
   log "Installazione Node.js 20..."
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - -qq
+  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
   apt-get install -y -qq nodejs
 fi
 
