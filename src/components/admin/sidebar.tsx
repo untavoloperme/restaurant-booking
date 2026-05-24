@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
-import Image from "next/image";
 import {
   LayoutDashboard,
   CalendarCheck,
@@ -97,8 +96,9 @@ export default function AdminSidebar({ modules }: { modules: Record<string, bool
           <SidebarNav modules={modules} />
         </div>
         <div className="pt-3 pb-2 border-t">
-          <div className="relative h-28 w-full">
-            <Image src="/untavoloperlogo.svg" alt="Un Tavolo Per" fill className="object-contain object-center" unoptimized />
+          <div className="h-28 w-full flex items-center justify-center px-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/untavoloperlogo.svg" alt="Un Tavolo Per" className="max-h-full max-w-full object-contain" />
           </div>
         </div>
       </aside>
@@ -117,8 +117,9 @@ export default function AdminSidebar({ modules }: { modules: Record<string, bool
               <SidebarNav modules={modules} onNavigate={() => setOpen(false)} />
             </div>
             <div className="px-3 py-3 border-t">
-              <div className="relative h-24 w-full">
-                <Image src="/untavoloperlogo.svg" alt="Un Tavolo Per" fill className="object-contain object-center" unoptimized />
+              <div className="h-24 w-full flex items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/untavoloperlogo.svg" alt="Un Tavolo Per" className="max-h-full max-w-full object-contain" />
               </div>
             </div>
           </aside>

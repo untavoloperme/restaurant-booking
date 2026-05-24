@@ -518,7 +518,8 @@ export default function MenuPage({ params }: { params: { tableId: string } }) {
       {/* Powered by footer */}
       <div className="max-w-lg mx-auto mt-6 flex flex-col items-center gap-1.5 py-3 px-4 border-t border-white/10">
         <div className="relative h-40 w-full">
-          <Image src="/untavoloperlogo.svg" alt="Un Tavolo Per" fill className="object-contain" style={{ filter: "brightness(0) invert(1)" }} unoptimized />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/untavoloperlogo.svg" alt="Un Tavolo Per" className="max-h-full max-w-full object-contain" style={{ filter: "brightness(0) invert(1)" }} />
         </div>
         <p className="text-xs text-white/40">
           Powered by{" "}
