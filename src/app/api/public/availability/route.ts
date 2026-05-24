@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAvailableSlots } from "@/lib/slots";
-import { parseISO, startOfDay } from "date-fns";
+import { startOfDay } from "date-fns";
 import { z } from "zod";
 
 const QuerySchema = z.object({
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
   }
 
-  const date = startOfDay(parseISO(parsed.data.date));
+  const date = new Date(parsed.data.date);
 
   // Non prenotare nel passato
   if (date < startOfDay(new Date())) {

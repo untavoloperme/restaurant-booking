@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
+import Image from "next/image";
 import {
   LayoutDashboard,
   CalendarCheck,
@@ -91,8 +92,15 @@ export default function AdminSidebar({ modules }: { modules: Record<string, bool
 
   return (
     <>
-      <aside className="hidden md:flex flex-col w-[var(--sidebar-width)] border-r bg-white shrink-0">
-        <SidebarNav modules={modules} />
+      <aside className="hidden md:flex flex-col w-[var(--sidebar-width)] border-r bg-white shrink-0 h-full">
+        <div className="flex-1 overflow-y-auto">
+          <SidebarNav modules={modules} />
+        </div>
+        <div className="pt-3 pb-2 border-t">
+          <div className="relative h-28 w-full">
+            <Image src="/untavoloperlogo.svg" alt="Un Tavolo Per" fill className="object-contain object-center" />
+          </div>
+        </div>
       </aside>
 
       <div className="md:hidden fixed top-3 left-3 z-50">
@@ -104,8 +112,15 @@ export default function AdminSidebar({ modules }: { modules: Record<string, bool
       {open && (
         <div className="md:hidden fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <aside className="absolute left-0 top-0 h-full w-[var(--sidebar-width)] bg-white shadow-xl">
-            <SidebarNav modules={modules} onNavigate={() => setOpen(false)} />
+          <aside className="absolute left-0 top-0 h-full w-[var(--sidebar-width)] bg-white shadow-xl flex flex-col">
+            <div className="flex-1 overflow-y-auto">
+              <SidebarNav modules={modules} onNavigate={() => setOpen(false)} />
+            </div>
+            <div className="px-3 py-3 border-t">
+              <div className="relative h-24 w-full">
+                <Image src="/untavoloperlogo.svg" alt="Un Tavolo Per" fill className="object-contain object-center" />
+              </div>
+            </div>
           </aside>
         </div>
       )}

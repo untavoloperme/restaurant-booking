@@ -7,6 +7,7 @@ vi.mock("../prisma", () => ({
     openingHours: { findUnique: vi.fn() },
     table: { findMany: vi.fn() },
     reservation: { findMany: vi.fn().mockResolvedValue([]) },
+    setting: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
 
@@ -18,12 +19,15 @@ const mockPrisma = prisma as unknown as {
   openingHours: { findUnique: ReturnType<typeof vi.fn> };
   table: { findMany: ReturnType<typeof vi.fn> };
   reservation: { findMany: ReturnType<typeof vi.fn> };
+  setting: { findMany: ReturnType<typeof vi.fn> };
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockPrisma.closureDay.findFirst.mockResolvedValue(null);
   mockPrisma.reservation.findMany.mockResolvedValue([]);
+  // default drift: soglia 3, step 15 min (valori di default se non presenti in DB)
+  mockPrisma.setting.findMany.mockResolvedValue([]);
 });
 
 describe("isWeekend", () => {
@@ -64,7 +68,7 @@ describe("getAvailableSlots", () => {
     const sabato = new Date("2026-05-30"); // Sabato
     mockPrisma.openingHours.findUnique.mockResolvedValue({
       dayOfWeek: 6, active: true,
-      shifts: [{ start: "19:00", end: "23:00" }], slotInterval: 15,
+      shifts: [{ start: "19:00", end: "21:00" }, { start: "21:00", end: "23:00" }], slotInterval: 15,
     });
     mockPrisma.table.findMany.mockResolvedValue([{ id: "t1", capacity: 4 }]);
     const slots = await getAvailableSlots(sabato, 4);

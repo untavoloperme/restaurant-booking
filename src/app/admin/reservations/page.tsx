@@ -180,7 +180,7 @@ export default function ReservationsPage() {
     try {
       const res = await fetch(`/api/public/availability?date=${date}&partySize=${partySize}`);
       const data = await res.json();
-      setNewSlots(Array.isArray(data) ? data : []);
+      setNewSlots(Array.isArray(data.slots) ? data.slots : []);
     } catch {
       setNewSlots([]);
     } finally {
@@ -213,7 +213,7 @@ export default function ReservationsPage() {
       customerName: "",
       phone: "",
       partySize: "2",
-      date: format(new Date(), "yyyy-MM-dd"),
+      date: dateFilter,
       time: "",
       notes: "",
     });
@@ -223,7 +223,7 @@ export default function ReservationsPage() {
     setRoomTables([]);
     setNewError(null);
     setNewDialog(true);
-    loadSlots(format(new Date(), "yyyy-MM-dd"), "2");
+    loadSlots(dateFilter, "2");
     loadRooms();
   }
 
@@ -265,7 +265,11 @@ export default function ReservationsPage() {
       setNewError(null);
       toast({ title: `Prenotazione creata — ${data.code}` });
       setNewDialog(false);
-      fetchReservations();
+      if (date === dateFilter) {
+        fetchReservations();
+      } else {
+        setDateFilter(date);
+      }
     } catch {
       toast({ title: "Errore di connessione", variant: "destructive" });
     } finally {

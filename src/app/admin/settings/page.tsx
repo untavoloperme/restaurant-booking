@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   ShieldOff,
   Store,
+  Timer,
 } from "lucide-react";
 
 interface SettingsData {
@@ -31,6 +32,8 @@ interface SettingsData {
   "menu.show_images": string;
   "restaurant.name": string;
   "restaurant.logo": string;
+  "slot.driftThreshold": string;
+  "slot.driftMinutes": string;
 }
 
 export default function SettingsPage() {
@@ -40,6 +43,8 @@ export default function SettingsPage() {
   const [acting, setActing] = useState<string | null>(null);
   const [copertoInput, setCopertoInput] = useState("");
   const [restaurantNameInput, setRestaurantNameInput] = useState("");
+  const [driftThreshold, setDriftThreshold] = useState("3");
+  const [driftMinutes, setDriftMinutes] = useState("15");
   const copertoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nameSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -59,6 +64,8 @@ export default function SettingsPage() {
         setSettings(data);
         setCopertoInput(data.coperto ?? "0");
         setRestaurantNameInput(data["restaurant.name"] ?? "");
+        setDriftThreshold(data["slot.driftThreshold"] ?? "3");
+        setDriftMinutes(data["slot.driftMinutes"] ?? "15");
       });
 
     fetch("/api/auth/totp/status")
@@ -102,6 +109,27 @@ export default function SettingsPage() {
       setCopertoInput(normalized);
       setSettings((s) => s ? { ...s, coperto: normalized } : s);
       toast({ title: "Coperto salvato" });
+    } catch {
+      toast({ title: "Errore salvataggio", variant: "destructive" });
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function saveDrift() {
+    const t = Math.max(1, parseInt(driftThreshold, 10) || 3);
+    const m = Math.max(1, parseInt(driftMinutes, 10) || 15);
+    setDriftThreshold(String(t));
+    setDriftMinutes(String(m));
+    setSaving("slot.drift");
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ "slot.driftThreshold": String(t), "slot.driftMinutes": String(m) }),
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: "Impostazioni slittamento salvate" });
     } catch {
       toast({ title: "Errore salvataggio", variant: "destructive" });
     } finally {
@@ -408,6 +436,72 @@ export default function SettingsPage() {
                 Salva
               </Button>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Slittamento slot */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Timer className="h-4 w-4" /> Slittamento slot prenotazioni
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="drift-threshold" className="text-sm font-medium">
+                Prenotazioni per attivare lo slittamento
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Quando questo numero di prenotazioni condivide lo stesso orario, il successivo viene spostato in avanti.
+              </p>
+            </div>
+            <Input
+              id="drift-threshold"
+              type="number"
+              min="1"
+              step="1"
+              value={driftThreshold}
+              onChange={(e) => setDriftThreshold(e.target.value)}
+              className="w-20 h-8 text-sm shrink-0"
+              disabled={saving !== null}
+            />
+          </div>
+          <div className="border-t pt-5 flex items-center justify-between gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="drift-minutes" className="text-sm font-medium">
+                Minuti di spostamento
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Di quanti minuti viene spostato lo slot quando la soglia è raggiunta.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Input
+                id="drift-minutes"
+                type="number"
+                min="1"
+                step="5"
+                value={driftMinutes}
+                onChange={(e) => setDriftMinutes(e.target.value)}
+                className="w-20 h-8 text-sm"
+                disabled={saving !== null}
+              />
+              <span className="text-sm text-muted-foreground">min</span>
+            </div>
+          </div>
+          <div className="border-t pt-4 flex justify-end">
+            <Button
+              size="sm"
+              onClick={saveDrift}
+              disabled={saving !== null}
+            >
+              {saving === "slot.drift" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+              ) : null}
+              Salva
+            </Button>
           </div>
         </CardContent>
       </Card>

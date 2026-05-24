@@ -1,0 +1,42 @@
+<svg width="680" height="340" viewBox="0 0 680 340" xmlns="http://www.w3.org/2000/svg">
+
+<style>
+  .logo-main { fill: #2c2420; }
+  .logo-accent { fill: #c2703a; }
+  .logo-sub { fill: #6b5d52; }
+  .logo-icon-stroke { stroke: #c2703a; }
+  .logo-icon-fill { fill: #c2703a; }
+  .logo-dot { fill: #c2703a; }
+  .logo-line { stroke: #6b5d52; }
+  .tagline { fill: #8a7e72; }
+</style>
+
+<g transform="translate(340, 100)">
+  <circle cx="0" cy="0" r="38" fill="none" class="logo-icon-stroke" stroke-width="1.8"/>
+  <circle cx="0" cy="0" r="32" fill="none" class="logo-icon-stroke" stroke-width="0.6" stroke-dasharray="2 4"/>
+  <line x1="-11" y1="-10" x2="-11" y2="-22" class="logo-icon-stroke" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-4" y1="-10" x2="-4" y2="-22" class="logo-icon-stroke" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="3" y1="-10" x2="3" y2="-22" class="logo-icon-stroke" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="10" y1="-10" x2="10" y2="-22" class="logo-icon-stroke" stroke-width="1.8" stroke-linecap="round"/>
+  <ellipse cx="0" cy="-6" rx="18" ry="6" fill="none" class="logo-icon-stroke" stroke-width="1.5"/>
+  <path d="M-14 2 Q-14 16 0 16 Q14 16 14 2" fill="none" class="logo-icon-stroke" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="0" y1="16" x2="0" y2="24" class="logo-icon-stroke" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-8" y1="24" x2="8" y2="24" class="logo-icon-stroke" stroke-width="1.8" stroke-linecap="round"/>
+</g>
+
+<g transform="translate(340, 175)">
+  <text x="0" y="0" text-anchor="middle" font-family="'Georgia', 'Times New Roman', serif" font-size="38" font-weight="400" letter-spacing="3" class="logo-main">
+    <tspan class="logo-main">un</tspan><tspan class="logo-accent">tavolo</tspan><tspan class="logo-main">per</tspan>
+  </text>
+  <text x="0" y="38" text-anchor="middle" font-family="'Georgia', 'Times New Roman', serif" font-size="28" font-weight="400" letter-spacing="8" class="logo-accent">.me</text>
+</g>
+
+<g transform="translate(340, 240)">
+  <line x1="-80" y1="0" x2="-12" y2="0" class="logo-line" stroke-width="0.6"/>
+  <circle cx="0" cy="0" r="3" class="logo-dot"/>
+  <line x1="12" y1="0" x2="80" y2="0" class="logo-line" stroke-width="0.6"/>
+</g>
+
+<text x="340" y="270" text-anchor="middle" font-family="'Helvetica Neue', 'Arial', sans-serif" font-size="11" letter-spacing="5" class="tagline">PRENOTA · ORDINA · GUSTA</text>
+
+</svg>

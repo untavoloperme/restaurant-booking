@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import SiteFooter from "@/components/site-footer";
 
 /* Icone flottanti di sfondo */
 const FLOATERS = [
@@ -71,7 +72,7 @@ export default function LoginPage() {
   const logoUrl = branding?.logo || null;
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden px-4"
+    <div className="relative min-h-screen flex flex-col overflow-hidden"
          style={{ background: "linear-gradient(135deg, #0d0905 0%, #1a1008 40%, #0e0d12 100%)" }}>
 
       {/* Blob luminosi ambra che pulsano */}
@@ -115,6 +116,9 @@ export default function LoginPage() {
           backgroundSize: "60px 60px",
         }}
       />
+
+      {/* Contenuto centrato */}
+      <div className="flex-1 flex items-center justify-center px-4">
 
       {/* Icone flottanti */}
       {FLOATERS.map(({ Icon, size, dur, delay, opacity, ...pos }, i) => (
@@ -211,6 +215,9 @@ export default function LoginPage() {
           </form>
         </div>
       </div>
+
+      </div>{/* fine contenuto centrato */}
+      <SiteFooter dark />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { parseISO, startOfDay, endOfDay, format, differenceInMinutes } from "date-fns";
+import { format, differenceInMinutes, addDays } from "date-fns";
 
 export async function GET(req: Request) {
   const session = await getAuth();
@@ -14,12 +14,12 @@ export async function GET(req: Request) {
   if (!fromParam || !toParam)
     return NextResponse.json({ error: "from e to obbligatori" }, { status: 400 });
 
-  const from = startOfDay(parseISO(fromParam));
-  const to   = endOfDay(parseISO(toParam));
+  const from = new Date(fromParam);
+  const to   = addDays(new Date(toParam), 1);
 
   // ── 1. Prenotazioni per data ──────────────────────────────
   const allReservations = await prisma.reservation.findMany({
-    where: { date: { gte: from, lte: to } },
+    where: { date: { gte: from, lt: to } },
     select: { date: true, status: true, partySize: true, arrivedAt: true, checkedOutAt: true },
     orderBy: { date: "asc" },
   });

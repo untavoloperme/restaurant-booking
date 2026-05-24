@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { format, addMinutes, isBefore, isAfter, parse } from "date-fns";
-import { isWeekend } from "./slots";
+import { isWeekend, Shift } from "./slots";
 
 const MEAL_DURATION_MIN = 105;
 
@@ -8,10 +8,9 @@ function parseTime(t: string): Date {
   return parse(t, "HH:mm", new Date(0));
 }
 
-function getTurnIndex(time: string): number {
+function timeInTurn(time: string, turn: Shift): boolean {
   const t = parseTime(time);
-  const turn1End = parseTime("21:00");
-  return isBefore(t, turn1End) ? 0 : 1;
+  return !isBefore(t, parseTime(turn.start)) && isBefore(t, parseTime(turn.end));
 }
 
 function tableOccupiedByRes(
@@ -25,16 +24,25 @@ function timesConflict(
   aTime: string,
   bTime: string,
   weekend: boolean,
-  turnIdx: number
+  turn: Shift | null
 ): boolean {
-  if (weekend) {
-    return getTurnIndex(aTime) === turnIdx && getTurnIndex(bTime) === turnIdx;
+  if (weekend && turn) {
+    // Both times must fall inside the same configured turn to be a conflict
+    return timeInTurn(aTime, turn) && timeInTurn(bTime, turn);
   }
   const aStart = parseTime(aTime);
   const aEnd = addMinutes(aStart, MEAL_DURATION_MIN);
   const bStart = parseTime(bTime);
   const bEnd = addMinutes(bStart, MEAL_DURATION_MIN);
   return isBefore(aStart, bEnd) && isAfter(aEnd, bStart);
+}
+
+async function getWeekendTurn(time: string, date: Date): Promise<Shift | null> {
+  const dayOfWeek = date.getDay();
+  const hoursConfig = await prisma.openingHours.findUnique({ where: { dayOfWeek } });
+  if (!hoursConfig) return null;
+  const turns: Shift[] = hoursConfig.shifts as unknown as Shift[];
+  return turns.find((t) => timeInTurn(time, t)) ?? (turns.length > 0 ? turns[turns.length - 1] : null);
 }
 
 /**
@@ -49,7 +57,7 @@ export async function assignTable(
 ): Promise<string | null> {
   const dateStr = format(date, "yyyy-MM-dd");
   const weekend = isWeekend(date);
-  const turnIdx = weekend ? getTurnIndex(time) : -1;
+  const turn = weekend ? await getWeekendTurn(time, date) : null;
 
   const existingRes = await prisma.reservation.findMany({
     where: {
@@ -72,7 +80,7 @@ export async function assignTable(
     const hasConflict = existingRes.some(
       (r) =>
         tableOccupiedByRes(table.id, r) &&
-        timesConflict(r.time, time, weekend, turnIdx)
+        timesConflict(r.time, time, weekend, turn)
     );
     if (!hasConflict) return table.id;
   }
@@ -89,7 +97,7 @@ export async function isTableFree(
 ): Promise<boolean> {
   const dateStr = format(date, "yyyy-MM-dd");
   const weekend = isWeekend(date);
-  const turnIdx = weekend ? getTurnIndex(time) : -1;
+  const turn = weekend ? await getWeekendTurn(time, date) : null;
 
   const existing = await prisma.reservation.findMany({
     where: {
@@ -106,6 +114,6 @@ export async function isTableFree(
   return !existing.some(
     (r) =>
       tableOccupiedByRes(tableId, r) &&
-      timesConflict(r.time, time, weekend, turnIdx)
+      timesConflict(r.time, time, weekend, turn)
   );
 }

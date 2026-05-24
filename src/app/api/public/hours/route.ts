@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { parseISO, startOfDay, addDays } from "date-fns";
+import { addDays } from "date-fns";
 import type { Shift } from "@/lib/slots";
 
 export async function GET(req: Request) {
@@ -11,7 +11,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Data non valida" }, { status: 400 });
   }
 
-  const date = startOfDay(parseISO(dateStr));
+  const date = new Date(dateStr);
   const nextDay = addDays(date, 1);
 
   const closure = await prisma.closureDay.findFirst({

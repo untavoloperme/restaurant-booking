@@ -8,6 +8,7 @@ import {
 } from "@/components/admin/navigation-progress";
 import { MODULE_KEYS } from "@/lib/modules";
 import { PowerOff } from "lucide-react";
+import SiteFooter from "@/components/site-footer";
 
 /* Mappa path → chiave modulo */
 const PATH_TO_MODULE: Record<string, string> = {
@@ -64,6 +65,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <AdminPageWrapper>{children}</AdminPageWrapper>
           )}
         </main>
+        <SiteFooter />
       </div>
     </div>
   );

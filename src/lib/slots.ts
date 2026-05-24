@@ -13,6 +13,17 @@ export interface AvailableSlot {
 
 const MEAL_DURATION_MIN = 105; // durata media seduta feriale
 
+async function getDriftConfig(): Promise<{ threshold: number; minutes: number }> {
+  const rows = await prisma.setting.findMany({
+    where: { key: { in: ["slot.driftThreshold", "slot.driftMinutes"] } },
+  });
+  const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  return {
+    threshold: Math.max(1, parseInt(map["slot.driftThreshold"] ?? "3", 10) || 3),
+    minutes: Math.max(1, parseInt(map["slot.driftMinutes"] ?? "15", 10) || 15),
+  };
+}
+
 function parseTime(t: string): Date {
   return parse(t, "HH:mm", new Date(0));
 }
@@ -70,6 +81,7 @@ export async function getAvailableSlots(
     select: { time: true, tableId: true, partySize: true },
   });
 
+  const { threshold, minutes: driftMinutes } = await getDriftConfig();
   const result: AvailableSlot[] = [];
 
   for (let turnIdx = 0; turnIdx < turns.length; turnIdx++) {
@@ -96,11 +108,11 @@ export async function getAvailableSlots(
       // Conta prenotazioni a quest'orario
       const countAtTime = existingRes.filter((r) => r.time === current).length;
 
-      // Regola scivolamento: ogni 3 prenotazioni allo stesso orario, sposta di +15 min
+      // Regola scivolamento: ogni `threshold` prenotazioni allo stesso orario, sposta di +driftMinutes
       let effectiveTime = current;
       let checkCount = countAtTime;
-      while (checkCount >= 3) {
-        effectiveTime = addMins(effectiveTime, 15);
+      while (checkCount >= threshold) {
+        effectiveTime = addMins(effectiveTime, driftMinutes);
         checkCount = existingRes.filter((r) => r.time === effectiveTime).length;
         // Verifica che il nuovo slot sia ancora nel turno
         if (!timeInShift(effectiveTime, turn)) {
@@ -165,8 +177,6 @@ async function checkTableAvailability(
 export async function resolveSlot(
   requestedTime: string,
   date: Date,
-  weekend: boolean,
-  turnIdx: number
 ): Promise<string> {
   const dateStr = format(date, "yyyy-MM-dd");
   const existingRes = await prisma.reservation.findMany({
@@ -180,13 +190,16 @@ export async function resolveSlot(
   const dayOfWeek = date.getDay();
   const hoursConfig = await prisma.openingHours.findUnique({ where: { dayOfWeek } });
   const turns: Shift[] = (hoursConfig?.shifts as unknown as Shift[]) ?? [];
-  const turn = turns[turnIdx] ?? { start: "00:00", end: "23:59" };
+  // Find the turn that contains the requested time instead of relying on a hardcoded index
+  const turn = turns.find((t) => timeInShift(requestedTime, t)) ?? { start: "00:00", end: "23:59" };
+
+  const { threshold, minutes: driftMinutes } = await getDriftConfig();
 
   let effectiveTime = requestedTime;
   let count = existingRes.filter((r) => r.time === effectiveTime).length;
 
-  while (count >= 3) {
-    effectiveTime = addMins(effectiveTime, 15);
+  while (count >= threshold) {
+    effectiveTime = addMins(effectiveTime, driftMinutes);
     if (!timeInShift(effectiveTime, turn)) break;
     count = existingRes.filter((r) => r.time === effectiveTime).length;
   }

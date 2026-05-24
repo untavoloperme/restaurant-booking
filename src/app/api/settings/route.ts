@@ -10,6 +10,8 @@ const DEFAULTS: Record<string, string> = {
   "menu.show_images": "true",
   "restaurant.name": "",
   "restaurant.logo": "",
+  "slot.driftThreshold": "3",
+  "slot.driftMinutes": "15",
 };
 
 export async function GET() {

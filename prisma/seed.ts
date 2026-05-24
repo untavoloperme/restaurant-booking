@@ -36,7 +36,7 @@ async function main() {
           active: true,
           slotInterval: 15,
           shifts: isWeekend
-            ? [{ start: "19:00", end: "23:00" }]
+            ? [{ start: "19:00", end: "21:00" }, { start: "21:00", end: "23:00" }]
             : [
                 { start: "12:00", end: "14:30" },
                 { start: "19:00", end: "23:00" },

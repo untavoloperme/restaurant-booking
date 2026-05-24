@@ -3,8 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { CreateReservationSchema } from "@/lib/validators";
 import { assignTable } from "@/lib/assign-table";
 import { resolveSlot } from "@/lib/slots";
-import { isWeekend } from "@/lib/slots";
-import { parseISO, startOfDay, addMinutes, format } from "date-fns";
+import { startOfDay, addMinutes, format } from "date-fns";
 import { nanoid } from "nanoid";
 import { emitEvent } from "@/lib/sse";
 
@@ -12,10 +11,6 @@ function generateCode(): string {
   return "BCK-" + nanoid(6).toUpperCase();
 }
 
-function getTurnIndex(time: string): number {
-  const [h] = time.split(":").map(Number);
-  return h < 21 ? 0 : 1;
-}
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -29,7 +24,7 @@ export async function POST(req: Request) {
 
   const { customerName, phone, partySize, date: dateStr, time, notes, source } = parsed.data;
 
-  const date = startOfDay(parseISO(dateStr));
+  const date = new Date(dateStr);
   if (date < startOfDay(new Date())) {
     return NextResponse.json({ error: "Non puoi prenotare nel passato" }, { status: 400 });
   }
@@ -53,11 +48,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Il ristorante è chiuso in questo giorno" }, { status: 409 });
   }
 
-  const weekend = isWeekend(date);
-  const turnIdx = weekend ? getTurnIndex(time) : 0;
-
   // Applica scivolamento slot
-  const effectiveTime = await resolveSlot(time, date, weekend, turnIdx);
+  const effectiveTime = await resolveSlot(time, date);
 
   // Assegnazione tavolo automatica
   const tableId = await assignTable(partySize, date, effectiveTime);

@@ -3,8 +3,8 @@ import { getAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CreateReservationAdminSchema } from "@/lib/validators";
 import { assignTable, isTableFree } from "@/lib/assign-table";
-import { resolveSlot, isWeekend } from "@/lib/slots";
-import { parseISO, startOfDay, addMinutes, format } from "date-fns";
+import { resolveSlot } from "@/lib/slots";
+import { addMinutes, format } from "date-fns";
 import { nanoid } from "nanoid";
 import { emitEvent } from "@/lib/sse";
 
@@ -12,10 +12,6 @@ function generateCode() {
   return "BCK-" + nanoid(6).toUpperCase();
 }
 
-function getTurnIndex(time: string) {
-  const [h] = time.split(":").map(Number);
-  return h < 21 ? 0 : 1;
-}
 
 export async function GET(req: Request) {
   const session = await getAuth();
@@ -28,7 +24,7 @@ export async function GET(req: Request) {
 
   const where: Record<string, unknown> = {};
   if (dateParam) {
-    const d = startOfDay(parseISO(dateParam));
+    const d = new Date(dateParam);
     where.date = { gte: d, lt: new Date(format(addMinutes(d, 24 * 60), "yyyy-MM-dd")) };
   }
   if (statusParam) {
@@ -60,9 +56,7 @@ export async function POST(req: Request) {
     const { customerName, phone, partySize, date: dateStr, time, notes, extraTableIds } = parsed.data;
     const manualTableId = parsed.data.tableId;
 
-    const date = startOfDay(parseISO(dateStr));
-    const weekend = isWeekend(date);
-    const turnIdx = weekend ? getTurnIndex(time) : 0;
+    const date = new Date(dateStr);
 
     let effectiveTime: string;
     let primaryTableId: string | null;
@@ -82,7 +76,7 @@ export async function POST(req: Request) {
         }
       }
     } else {
-      effectiveTime = await resolveSlot(time, date, weekend, turnIdx);
+      effectiveTime = await resolveSlot(time, date);
       primaryTableId = await assignTable(partySize, date, effectiveTime);
       if (!primaryTableId) {
         return NextResponse.json(

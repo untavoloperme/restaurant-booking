@@ -515,6 +515,19 @@ export default function MenuPage({ params }: { params: { tableId: string } }) {
         })}
       </div>
 
+      {/* Powered by footer */}
+      <div className="max-w-lg mx-auto mt-6 flex flex-col items-center gap-1.5 py-3 px-4 border-t border-white/10">
+        <div className="relative h-40 w-full">
+          <Image src="/untavoloperlogo.svg" alt="Un Tavolo Per" fill className="object-contain" style={{ filter: "brightness(0) invert(1)" }} />
+        </div>
+        <p className="text-xs text-white/40">
+          Powered by{" "}
+          <a href="mailto:info@tekdata.it" className="hover:underline text-white/60">Tekdata</a>
+          {" "}—{" "}
+          <a href="mailto:info@tekdata.it" className="hover:underline text-white/60">info@tekdata.it</a>
+        </p>
+      </div>
+
       {/* Cart footer */}
       {cartHasItems && (
         <div className="fixed bottom-0 left-0 right-0 z-20 px-4 pb-5 pt-3 bg-gradient-to-t from-stone-950 via-stone-950/95 to-transparent animate-slide-in-up">

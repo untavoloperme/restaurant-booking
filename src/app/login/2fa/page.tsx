@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ShieldCheck, Loader2, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import SiteFooter from "@/components/site-footer";
 
 export default function TwoFactorPage() {
   const router = useRouter();
@@ -37,9 +38,10 @@ export default function TwoFactorPage() {
 
   return (
     <div
-      className="relative min-h-screen flex items-center justify-center overflow-hidden px-4"
+      className="relative min-h-screen flex flex-col overflow-hidden"
       style={{ background: "linear-gradient(135deg, #0d0905 0%, #1a1008 40%, #0e0d12 100%)" }}
     >
+      <div className="flex-1 flex items-center justify-center px-4">
       {/* Blob ambra */}
       <div
         className="absolute pointer-events-none rounded-full"
@@ -138,6 +140,8 @@ export default function TwoFactorPage() {
           </form>
         </div>
       </div>
+      </div>{/* fine contenuto centrato */}
+      <SiteFooter dark />
     </div>
   );
 }
