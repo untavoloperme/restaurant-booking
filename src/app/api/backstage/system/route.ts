@@ -23,13 +23,13 @@ async function fetchLatestVersion(): Promise<string | null> {
   const repo = process.env.GITHUB_REPO;
   if (!repo) return null;
   try {
-    const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
-      headers: { Accept: "application/vnd.github+json" },
-      signal: AbortSignal.timeout(5000),
-    });
+    const res = await fetch(
+      `https://raw.githubusercontent.com/${repo}/master/package.json`,
+      { signal: AbortSignal.timeout(5000) }
+    );
     if (!res.ok) return null;
-    const data = await res.json() as { tag_name?: string };
-    return data.tag_name?.replace(/^v/, "") ?? null;
+    const data = await res.json() as { version?: string };
+    return data.version ?? null;
   } catch {
     return null;
   }
