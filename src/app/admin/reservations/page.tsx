@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, getDaysInMonth, getDay, addMonths } from "date-fns";
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { useTick, formatDuration } from "@/hooks/use-tick";
-import { UserCheck, LogOut, ArrowRightLeft, Plus, RefreshCw, Phone, Users, Clock, Loader2, Link2, Search } from "lucide-react";
+import { UserCheck, LogOut, ArrowRightLeft, Plus, RefreshCw, Phone, Users, Clock, Loader2, Link2, Search, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Table {
   id: string;
@@ -61,6 +61,8 @@ export default function ReservationsPage() {
   const [dateFilter, setDateFilter] = useState(format(new Date(), "yyyy-MM-dd"));
   const [statusFilter, setStatusFilter] = useState("PENDING,ARRIVED");
   const [searchQuery, setSearchQuery] = useState("");
+  const [calendarMonth, setCalendarMonth] = useState(format(new Date(), "yyyy-MM"));
+  const [calendarCounts, setCalendarCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [moveDialog, setMoveDialog] = useState<{ open: boolean; reservation: Reservation | null }>({ open: false, reservation: null });
   const [availableTables, setAvailableTables] = useState<Table[]>([]);
@@ -104,14 +106,25 @@ export default function ReservationsPage() {
 
   useEffect(() => { fetchReservations(); }, [fetchReservations]);
 
+  const fetchCalendar = useCallback(async (month: string) => {
+    try {
+      const res = await fetch(`/api/reservations/calendar?month=${month}`);
+      const data = await res.json();
+      setCalendarCounts(data);
+    } catch { /* ignora */ }
+  }, []);
+
+  useEffect(() => { fetchCalendar(calendarMonth); }, [calendarMonth, fetchCalendar]);
+
   // SSE per aggiornamenti real-time
   useEffect(() => {
     const es = new EventSource("/api/stream");
-    es.addEventListener("reservation_created", fetchReservations);
-    es.addEventListener("reservation_updated", fetchReservations);
-    es.addEventListener("reservation_moved", fetchReservations);
+    const refresh = () => { fetchReservations(); fetchCalendar(calendarMonth); };
+    es.addEventListener("reservation_created", refresh);
+    es.addEventListener("reservation_updated", refresh);
+    es.addEventListener("reservation_moved", refresh);
     return () => es.close();
-  }, [fetchReservations]);
+  }, [fetchReservations, fetchCalendar, calendarMonth]);
 
   async function arrive(id: string) {
     await fetch(`/api/reservations/${id}/arrive`, { method: "POST" });
@@ -309,14 +322,93 @@ export default function ReservationsPage() {
         </div>
       </div>
 
+      {/* Mini calendario con pallini */}
+      {(() => {
+        const [calYear, calMonthIdx] = calendarMonth.split("-").map(Number);
+        const firstDay = new Date(calYear, calMonthIdx - 1, 1);
+        const daysInMonth = getDaysInMonth(firstDay);
+        const startOffset = (getDay(firstDay) + 6) % 7; // Lun=0 … Dom=6
+        const today = format(new Date(), "yyyy-MM-dd");
+        const DAY_LABELS = ["Lu", "Ma", "Me", "Gi", "Ve", "Sa", "Do"];
+        return (
+          <div className="bg-white border rounded-xl p-4 shadow-sm">
+            {/* Navigazione mese */}
+            <div className="flex items-center justify-between mb-3">
+              <button
+                onClick={() => {
+                  const prev = format(addMonths(firstDay, -1), "yyyy-MM");
+                  setCalendarMonth(prev);
+                }}
+                className="p-1 rounded hover:bg-slate-100 transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <span className="text-sm font-semibold capitalize">
+                {format(firstDay, "MMMM yyyy", { locale: it })}
+              </span>
+              <button
+                onClick={() => {
+                  const next = format(addMonths(firstDay, 1), "yyyy-MM");
+                  setCalendarMonth(next);
+                }}
+                className="p-1 rounded hover:bg-slate-100 transition-colors"
+              >
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+
+            {/* Intestazione giorni */}
+            <div className="grid grid-cols-7 mb-1">
+              {DAY_LABELS.map((d) => (
+                <div key={d} className="text-center text-xs text-muted-foreground font-medium py-1">
+                  {d}
+                </div>
+              ))}
+            </div>
+
+            {/* Griglia giorni */}
+            <div className="grid grid-cols-7 gap-y-0.5">
+              {Array.from({ length: startOffset }, (_, i) => (
+                <div key={`e${i}`} />
+              ))}
+              {Array.from({ length: daysInMonth }, (_, i) => {
+                const day = i + 1;
+                const dateStr = `${calYear}-${String(calMonthIdx).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                const isSelected = dateStr === dateFilter;
+                const isToday = dateStr === today;
+                const count = calendarCounts[dateStr] ?? 0;
+                return (
+                  <button
+                    key={day}
+                    onClick={() => {
+                      setDateFilter(dateStr);
+                    }}
+                    className={`relative flex flex-col items-center justify-center rounded-lg h-9 text-sm transition-colors ${
+                      isSelected
+                        ? "bg-primary text-primary-foreground font-bold"
+                        : isToday
+                        ? "bg-slate-100 font-semibold text-slate-800"
+                        : "hover:bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    {day}
+                    {count > 0 && (
+                      <span
+                        className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full ${
+                          isSelected ? "bg-primary-foreground/70" : "bg-primary"
+                        }`}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Filtri */}
       <div className="flex flex-wrap gap-2">
-        <Input
-          type="date"
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          className="w-44"
-        />
         <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Tutti gli stati" />
