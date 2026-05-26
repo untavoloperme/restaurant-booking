@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { getSoldoutRoomIds } from "./soldout";
 import { format, addMinutes, isBefore, isAfter, parse } from "date-fns";
 import { isWeekend, Shift } from "./slots";
 
@@ -71,8 +72,15 @@ export async function assignTable(
     select: { time: true, tableId: true, extraTableIds: true },
   });
 
+  const soldoutIds = await getSoldoutRoomIds();
   const tables = await prisma.table.findMany({
-    where: { capacity: { gte: partySize }, room: { active: true } },
+    where: {
+      capacity: { gte: partySize },
+      room: {
+        active: true,
+        ...(soldoutIds.size > 0 ? { id: { notIn: Array.from(soldoutIds) } } : {}),
+      },
+    },
     orderBy: { capacity: "asc" },
   });
 

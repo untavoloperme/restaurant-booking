@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getSoldoutRoomIds } from "@/lib/soldout";
 import { z } from "zod";
 
 const RoomSchema = z.object({
@@ -13,11 +14,14 @@ export async function GET() {
   const session = await getAuth();
   if (!session) return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
 
-  const rooms = await prisma.room.findMany({
-    include: { tables: { orderBy: { name: "asc" } } },
-    orderBy: { name: "asc" },
-  });
-  return NextResponse.json(rooms);
+  const [rooms, soldoutIds] = await Promise.all([
+    prisma.room.findMany({
+      include: { tables: { orderBy: { name: "asc" } } },
+      orderBy: { name: "asc" },
+    }),
+    getSoldoutRoomIds(),
+  ]);
+  return NextResponse.json(rooms.map((r) => ({ ...r, soldout: soldoutIds.has(r.id) })));
 }
 
 export async function POST(req: Request) {

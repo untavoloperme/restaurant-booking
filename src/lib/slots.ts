@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { getSoldoutRoomIds } from "./soldout";
 import { format, addMinutes, isAfter, isBefore, parse } from "date-fns";
 
 export interface Shift {
@@ -66,7 +67,16 @@ export async function getAvailableSlots(
   const turns: Shift[] = hoursConfig.shifts as unknown as Shift[];
   const interval = hoursConfig.slotInterval;
 
-  const allTables = await prisma.table.findMany({ where: { room: { active: true } }, select: { id: true, capacity: true } });
+  const soldoutIds = await getSoldoutRoomIds();
+  const allTables = await prisma.table.findMany({
+    where: {
+      room: {
+        active: true,
+        ...(soldoutIds.size > 0 ? { id: { notIn: Array.from(soldoutIds) } } : {}),
+      },
+    },
+    select: { id: true, capacity: true },
+  });
   if (allTables.length === 0) return [];
 
   // Prenotazioni esistenti per quella data (non cancellate)

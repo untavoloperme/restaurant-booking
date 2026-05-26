@@ -1,8 +1,10 @@
-import dynamic from "next/dynamic";
-import { isModuleEnabled } from "@/lib/modules";
-import { UtensilsCrossed } from "lucide-react";
+export const dynamic = "force-dynamic";
 
-const Chatbot = dynamic(() => import("@/components/chatbot/chatbot"), { ssr: false });
+import dynamicImport from "next/dynamic";
+import { isModuleEnabled } from "@/lib/modules";
+import { UtensilsCrossed, Phone } from "lucide-react";
+
+const Chatbot = dynamicImport(() => import("@/components/chatbot/chatbot"), { ssr: false });
 
 export const metadata = {
   title: "Prenota un tavolo",
@@ -13,11 +15,18 @@ export default async function WidgetPage() {
 
   if (!enabled) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-white gap-3 p-8 text-center">
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-white gap-4 p-8 text-center">
         <UtensilsCrossed className="w-10 h-10 text-stone-300" />
-        <p className="text-sm text-stone-500">
-          Il servizio di prenotazione online non è al momento disponibile.
-        </p>
+        <div className="space-y-1">
+          <p className="font-semibold text-stone-700">Prenotazioni temporaneamente sospese</p>
+          <p className="text-sm text-stone-500">
+            Le prenotazioni online non sono al momento disponibili.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5 text-amber-800 text-sm">
+          <Phone className="w-4 h-4 shrink-0" />
+          <span>Contatta direttamente il ristorante per prenotare.</span>
+        </div>
       </div>
     );
   }

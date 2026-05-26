@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useTick, formatDuration } from "@/hooks/use-tick";
-import { UserCheck, LogOut, ShoppingBag, Link2 } from "lucide-react";
+import { UserCheck, LogOut, ShoppingBag, Link2, BanIcon, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface Table {
@@ -27,6 +27,7 @@ interface Room {
   name: string;
   width: number;
   height: number;
+  soldout: boolean;
   tables: Table[];
 }
 
@@ -99,6 +100,7 @@ export default function FloorView() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeRoomIdx, setActiveRoomIdx] = useState(0);
   const [popover, setPopover] = useState<{ open: boolean; tableId: string | null }>({ open: false, tableId: null });
+  const [soldoutLoading, setSoldoutLoading] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [coperto, setCoperto] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -174,6 +176,31 @@ export default function FloorView() {
     loadData();
   }
 
+  async function toggleSoldout(roomId: string, currentSoldout: boolean) {
+    setSoldoutLoading(roomId);
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/soldout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ soldout: !currentSoldout }),
+      });
+      if (res.ok) {
+        setRooms((prev) =>
+          prev.map((r) => (r.id === roomId ? { ...r, soldout: !currentSoldout } : r))
+        );
+        toast({
+          title: !currentSoldout
+            ? "Sala segnata come sold out — prenotazioni bloccate"
+            : "Sala riaperta — prenotazioni disponibili",
+        });
+      }
+    } catch {
+      toast({ title: "Errore nel cambio stato", variant: "destructive" });
+    } finally {
+      setSoldoutLoading(null);
+    }
+  }
+
   const activeRoom = rooms[activeRoomIdx];
   const popoverTable = activeRoom?.tables.find((t) => t.id === popover.tableId) ?? null;
   const popoverInfo = popover.tableId ? getTableStatus(popover.tableId, reservations) : null;
@@ -229,19 +256,63 @@ export default function FloorView() {
         </div>
       </div>
 
-      {rooms.length > 1 && (
-        <div className="flex gap-2">
-          {rooms.map((room, idx) => (
-            <button
-              key={room.id}
-              onClick={() => setActiveRoomIdx(idx)}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                idx === activeRoomIdx ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-              }`}
-            >
-              {room.name}
-            </button>
-          ))}
+      {/* Room tabs + soldout toggle */}
+      {rooms.length > 0 && (
+        <div className="flex flex-wrap gap-2 items-center">
+          {rooms.map((room, idx) => {
+            const isActive = idx === activeRoomIdx;
+            const isSoldoutLoading = soldoutLoading === room.id;
+            return (
+              <div key={room.id} className="flex items-center gap-1.5">
+                {/* Room selector tab (only when multiple rooms) */}
+                {rooms.length > 1 && (
+                  <button
+                    onClick={() => setActiveRoomIdx(idx)}
+                    className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    }`}
+                  >
+                    {room.name}
+                  </button>
+                )}
+                {rooms.length === 1 && (
+                  <span className="text-sm font-semibold text-muted-foreground">{room.name}</span>
+                )}
+
+                {/* Soldout toggle */}
+                <button
+                  onClick={() => toggleSoldout(room.id, room.soldout)}
+                  disabled={isSoldoutLoading}
+                  title={room.soldout ? "Riapri prenotazioni per questa sala" : "Blocca nuove prenotazioni (sold out)"}
+                  className={[
+                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all",
+                    room.soldout
+                      ? "bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
+                      : "bg-green-50 border-green-300 text-green-700 hover:bg-green-100",
+                    "disabled:opacity-50",
+                  ].join(" ")}
+                >
+                  {isSoldoutLoading ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : room.soldout ? (
+                    <BanIcon className="w-3 h-3" />
+                  ) : (
+                    <CheckCircle2 className="w-3 h-3" />
+                  )}
+                  {room.soldout ? "Sold Out" : "Disponibile"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {activeRoom?.soldout && (
+        <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-300 px-4 py-2.5 text-red-700 text-sm font-medium">
+          <BanIcon className="w-4 h-4 shrink-0" />
+          Sala <strong>{activeRoom.name}</strong> in Sold Out — nuove prenotazioni online bloccate
         </div>
       )}
 
