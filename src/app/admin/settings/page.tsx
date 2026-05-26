@@ -31,6 +31,7 @@ interface SettingsData {
   "ordering.enabled": string;
   "menu.show_images": string;
   "restaurant.name": string;
+  "restaurant.phone": string;
   "restaurant.logo": string;
   "slot.driftThreshold": string;
   "slot.driftMinutes": string;
@@ -43,6 +44,7 @@ export default function SettingsPage() {
   const [acting, setActing] = useState<string | null>(null);
   const [copertoInput, setCopertoInput] = useState("");
   const [restaurantNameInput, setRestaurantNameInput] = useState("");
+  const [restaurantPhoneInput, setRestaurantPhoneInput] = useState("");
   const [driftThreshold, setDriftThreshold] = useState("3");
   const [driftMinutes, setDriftMinutes] = useState("15");
   const copertoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,6 +66,7 @@ export default function SettingsPage() {
         setSettings(data);
         setCopertoInput(data.coperto ?? "0");
         setRestaurantNameInput(data["restaurant.name"] ?? "");
+        setRestaurantPhoneInput(data["restaurant.phone"] ?? "");
         setDriftThreshold(data["slot.driftThreshold"] ?? "3");
         setDriftMinutes(data["slot.driftMinutes"] ?? "15");
       });
@@ -165,6 +168,24 @@ export default function SettingsPage() {
     setRestaurantNameInput(value);
     if (nameSaveTimer.current) clearTimeout(nameSaveTimer.current);
     nameSaveTimer.current = setTimeout(() => saveRestaurantName(value), 800);
+  }
+
+  async function saveRestaurantPhone(value: string) {
+    setSaving("restaurant.phone");
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ "restaurant.phone": value }),
+      });
+      if (!res.ok) throw new Error();
+      setSettings((s) => s ? { ...s, "restaurant.phone": value } : s);
+      toast({ title: "Telefono salvato" });
+    } catch {
+      toast({ title: "Errore salvataggio", variant: "destructive" });
+    } finally {
+      setSaving(null);
+    }
   }
 
   async function uploadLogo(file: File) {
@@ -332,6 +353,33 @@ export default function SettingsPage() {
                 value={restaurantNameInput}
                 onChange={(e) => onRestaurantNameChange(e.target.value)}
                 onBlur={() => saveRestaurantName(restaurantNameInput)}
+                className="w-48 h-8 text-sm"
+                disabled={saving !== null}
+              />
+            </div>
+          </div>
+
+          {/* Telefono ristorante */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="restaurant-phone" className="text-sm font-medium">
+                Telefono del ristorante
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Mostrato nelle pagine di prenotazione sospesa.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {saving === "restaurant.phone" && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+              )}
+              <Input
+                id="restaurant-phone"
+                type="tel"
+                placeholder="Es. 0522 123456"
+                value={restaurantPhoneInput}
+                onChange={(e) => setRestaurantPhoneInput(e.target.value)}
+                onBlur={() => saveRestaurantPhone(restaurantPhoneInput)}
                 className="w-48 h-8 text-sm"
                 disabled={saving !== null}
               />

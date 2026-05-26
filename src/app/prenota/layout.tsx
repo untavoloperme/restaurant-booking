@@ -18,7 +18,13 @@ export const viewport: Viewport = {
 };
 
 export default async function PrenotaLayout({ children }: { children: React.ReactNode }) {
-  const enabled = await isModuleEnabled("module.webapp");
+  const [enabled, phoneSetting] = await Promise.all([
+    isModuleEnabled("module.webapp"),
+    import("@/lib/prisma").then(({ prisma }) =>
+      prisma.setting.findUnique({ where: { key: "restaurant.phone" } })
+    ),
+  ]);
+  const phone = phoneSetting?.value ?? "";
 
   if (!enabled) {
     return (
@@ -34,7 +40,16 @@ export default async function PrenotaLayout({ children }: { children: React.Reac
         </div>
         <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-5 py-3 text-amber-800 text-sm">
           <Phone className="w-4 h-4 shrink-0" />
-          <span>Contatta direttamente il ristorante per prenotare.</span>
+          {phone ? (
+            <span>
+              Chiama il ristorante al{" "}
+              <a href={`tel:${phone.replace(/\s/g, "")}`} className="font-bold underline">
+                {phone}
+              </a>
+            </span>
+          ) : (
+            <span>Contatta direttamente il ristorante per prenotare.</span>
+          )}
         </div>
       </div>
     );

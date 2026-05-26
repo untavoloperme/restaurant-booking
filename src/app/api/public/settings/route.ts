@@ -8,6 +8,7 @@ const PUBLIC_KEYS = [
   "ordering.enabled",
   "menu.show_images",
   "restaurant.name",
+  "restaurant.phone",
   "restaurant.logo",
 ];
 
@@ -16,6 +17,7 @@ const DEFAULTS: Record<string, string> = {
   "ordering.enabled": "true",
   "menu.show_images": "true",
   "restaurant.name": "",
+  "restaurant.phone": "",
   "restaurant.logo": "",
 };
 

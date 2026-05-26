@@ -11,7 +11,13 @@ export const metadata = {
 };
 
 export default async function WidgetPage() {
-  const enabled = await isModuleEnabled("module.chatbot");
+  const [enabled, phoneSetting] = await Promise.all([
+    isModuleEnabled("module.chatbot"),
+    import("@/lib/prisma").then(({ prisma }) =>
+      prisma.setting.findUnique({ where: { key: "restaurant.phone" } })
+    ),
+  ]);
+  const phone = phoneSetting?.value ?? "";
 
   if (!enabled) {
     return (
@@ -25,7 +31,16 @@ export default async function WidgetPage() {
         </div>
         <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5 text-amber-800 text-sm">
           <Phone className="w-4 h-4 shrink-0" />
-          <span>Contatta direttamente il ristorante per prenotare.</span>
+          {phone ? (
+            <span>
+              Chiama al{" "}
+              <a href={`tel:${phone.replace(/\s/g, "")}`} className="font-bold underline">
+                {phone}
+              </a>
+            </span>
+          ) : (
+            <span>Contatta direttamente il ristorante per prenotare.</span>
+          )}
         </div>
       </div>
     );

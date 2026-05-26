@@ -9,6 +9,7 @@ const DEFAULTS: Record<string, string> = {
   "ordering.enabled": "true",
   "menu.show_images": "true",
   "restaurant.name": "",
+  "restaurant.phone": "",
   "restaurant.logo": "",
   "slot.driftThreshold": "3",
   "slot.driftMinutes": "15",
