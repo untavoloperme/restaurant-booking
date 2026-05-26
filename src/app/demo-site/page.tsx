@@ -21,6 +21,15 @@ export default function DemoSitePage() {
     (document.getElementById("rb-bubble") as HTMLElement | null)?.click();
   }
 
+  function handleBook() {
+    const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.location.href = "/prenota";
+    } else {
+      openWidget();
+    }
+  }
+
   return (
     <div style={{ fontFamily: "'Georgia', serif", background: "#fdf8f0", color: "#2d1f0e", minHeight: "100vh" }}>
 
@@ -42,7 +51,7 @@ export default function DemoSitePage() {
           <a href="#menu" style={{ textDecoration: "none", color: "inherit" }}>Menù</a>
           <a href="#about" style={{ textDecoration: "none", color: "inherit" }}>Chi siamo</a>
           <a href="#orari" style={{ textDecoration: "none", color: "inherit" }}>Orari</a>
-          <button onClick={openWidget} style={{
+          <button onClick={handleBook} style={{
             background: "#7c2d12", color: "white", border: "none", borderRadius: "6px",
             padding: "7px 18px", fontSize: "0.85rem", cursor: "pointer", fontFamily: "inherit",
           }}>
@@ -73,7 +82,7 @@ export default function DemoSitePage() {
             Una serata da noi è un viaggio tra i sapori di una volta.
           </p>
           <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-            <button onClick={openWidget} style={{
+            <button onClick={handleBook} style={{
               background: "#fcd34d", color: "#7c2d12", border: "none", borderRadius: "8px",
               padding: "14px 32px", fontSize: "1rem", fontWeight: "bold", cursor: "pointer",
               fontFamily: "inherit", letterSpacing: "0.02em",
@@ -219,7 +228,7 @@ export default function DemoSitePage() {
                 ✉️ info@osteriadellestelle.it
               </p>
             </div>
-            <button onClick={openWidget} style={{
+            <button onClick={handleBook} style={{
               background: "#7c2d12", color: "white", border: "none", borderRadius: "12px",
               padding: "18px", fontSize: "1rem", fontWeight: "bold", cursor: "pointer",
               fontFamily: "inherit", boxShadow: "0 4px 16px rgba(124,45,18,0.3)",
