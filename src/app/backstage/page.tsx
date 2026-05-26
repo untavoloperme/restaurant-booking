@@ -8,7 +8,7 @@ import {
   UtensilsCrossed, Settings, Users, ShieldCheck, ShieldOff,
   LogOut, Loader2, ToggleLeft, ToggleRight, Lock,
   GitBranch, RefreshCw, CheckCircle2, AlertCircle, Terminal,
-  Database, Trash2, Globe,
+  Database, Trash2, Globe, MessageSquare, Smartphone,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -22,6 +22,8 @@ const MODULES = [
   { key: "module.menu",          label: "Menu",             desc: "Gestione categorie, piatti e allergeni",          icon: UtensilsCrossed },
   { key: "module.settings",      label: "Impostazioni",     desc: "Parametri generali, orari, chiusure, branding",   icon: Settings },
   { key: "module.users",         label: "Utenti",           desc: "Creazione e gestione degli account del personale", icon: Users },
+  { key: "module.chatbot",       label: "Chatbot",          desc: "Assistente virtuale per prenotazioni via chat (/widget)", icon: MessageSquare },
+  { key: "module.webapp",        label: "Webapp Mobile",    desc: "Pagina di prenotazione mobile ottimizzata (/prenota)",    icon: Smartphone },
 ] as const;
 
 type ModuleKey = (typeof MODULES)[number]["key"];

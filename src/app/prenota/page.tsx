@@ -26,7 +26,23 @@ import {
   NotebookText,
   CalendarPlus,
   RefreshCw,
+  Pizza,
+  BookUser,
 } from "lucide-react";
+
+// ── Contact Picker API types ───────────────────────────────────────────────
+
+declare global {
+  interface Navigator {
+    contacts?: {
+      select(
+        props: string[],
+        opts?: { multiple?: boolean }
+      ): Promise<Array<{ name?: string[]; tel?: string[] }>>;
+      getProperties?(): Promise<string[]>;
+    };
+  }
+}
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -40,7 +56,8 @@ const PHONE_RE = /^(\+39\s?)?3\d{2}[\s-]?\d{6,7}$/;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type Step = "party-size" | "date" | "time" | "info" | "summary" | "confirmed";
+type MealType = "Pizzeria" | "Ristorante";
+type Step = "meal-type" | "party-size" | "date" | "time" | "info" | "summary" | "confirmed";
 
 interface Slot { time: string; shift: number }
 interface BookingResult { code: string; time: string; table: string | null }
@@ -118,20 +135,20 @@ function googleCalendarUrl(
 // ── Sub-components ─────────────────────────────────────────────────────────
 
 function ProgressDots({ step }: { step: Step }) {
-  const steps: Step[] = ["party-size", "date", "time", "info", "summary"];
+  const steps: Step[] = ["meal-type", "party-size", "date", "time", "info", "summary"];
   const current = steps.indexOf(step === "confirmed" ? "summary" : step);
   return (
-    <div className="flex items-center justify-center gap-2 py-3">
+    <div className="flex items-center justify-center gap-1.5 py-3">
       {steps.map((s, i) => (
         <div
           key={s}
           className={[
             "rounded-full transition-all duration-300",
             i < current
-              ? "w-2 h-2 bg-amber-400"
+              ? "w-2 h-2 bg-amber-300"
               : i === current
-              ? "w-6 h-2 bg-amber-600"
-              : "w-2 h-2 bg-stone-300",
+              ? "w-5 h-2 bg-white"
+              : "w-2 h-2 bg-amber-800/40",
           ].join(" ")}
         />
       ))}
@@ -167,8 +184,8 @@ function CalendarGrid({
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
   const daysInMonth = getDaysInMonth(currentMonth);
-  const firstDow = getDay(startOfMonth(currentMonth)); // 0=Sun
-  const offset = (firstDow + 6) % 7; // Mon-first offset
+  const firstDow = getDay(startOfMonth(currentMonth));
+  const offset = (firstDow + 6) % 7;
 
   const cells: (number | null)[] = [
     ...Array(offset).fill(null),
@@ -180,13 +197,10 @@ function CalendarGrid({
 
   return (
     <div className="px-4">
-      {/* Month navigation */}
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={onPrev}
-          disabled={
-            year === today.getFullYear() && month === today.getMonth()
-          }
+          disabled={year === today.getFullYear() && month === today.getMonth()}
           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-stone-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronLeft className="w-5 h-5 text-stone-600" />
@@ -206,7 +220,6 @@ function CalendarGrid({
         </button>
       </div>
 
-      {/* Day-of-week header */}
       <div className="grid grid-cols-7 mb-1">
         {DAYS_SHORT.map((d) => (
           <div key={d} className="text-center text-xs font-medium text-stone-400 py-1">
@@ -215,7 +228,6 @@ function CalendarGrid({
         ))}
       </div>
 
-      {/* Days grid */}
       {openDaysLoading ? (
         <div className="flex items-center justify-center h-40">
           <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
@@ -227,8 +239,7 @@ function CalendarGrid({
             const date = new Date(year, month, day);
             const dateStr = format(date, "yyyy-MM-dd");
             const isPast = date < today;
-            const isOpen = openDays.has(dateStr);
-            const isAvail = !isPast && isOpen;
+            const isAvail = !isPast && openDays.has(dateStr);
             const isToday = format(today, "yyyy-MM-dd") === dateStr;
 
             return (
@@ -265,7 +276,8 @@ function CalendarGrid({
 // ── Main page ──────────────────────────────────────────────────────────────
 
 export default function PrenotaPage() {
-  const [step, setStep] = useState<Step>("party-size");
+  const [step, setStep] = useState<Step>("meal-type");
+  const [mealType, setMealType] = useState<MealType | null>(null);
   const [partySize, setPartySize] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -281,30 +293,37 @@ export default function PrenotaPage() {
   const [slotsError, setSlotsError] = useState<string | null>(null);
   const [booking, setBooking] = useState<BookingResult | null>(null);
   const [restaurantName, setRestaurantName] = useState("Ristorante");
+  const [restaurantLogo, setRestaurantLogo] = useState("");
   const [calendarAdded, setCalendarAdded] = useState(false);
+  const [contactPickerSupported, setContactPickerSupported] = useState(false);
+  const [contactPickerLoading, setContactPickerLoading] = useState(false);
 
-  const [currentMonth, setCurrentMonth] = useState(() => {
-    const d = new Date();
-    return startOfMonth(d);
-  });
+  const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
   const [openDays, setOpenDays] = useState<Set<string>>(new Set());
   const [openDaysLoading, setOpenDaysLoading] = useState(false);
 
   const topRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to top on step change
   useEffect(() => {
     topRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [step]);
 
-  // Fetch restaurant name once
+  // Fetch restaurant settings once
   useEffect(() => {
     fetch("/api/public/settings")
       .then((r) => r.json())
       .then((data) => {
         if (data["restaurant.name"]) setRestaurantName(data["restaurant.name"]);
+        if (data["restaurant.logo"]) setRestaurantLogo(data["restaurant.logo"]);
       })
       .catch(() => {});
+  }, []);
+
+  // Check Contact Picker API support
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && "contacts" in navigator && navigator.contacts) {
+      setContactPickerSupported(true);
+    }
   }, []);
 
   // Fetch open days when on date step or month changes
@@ -320,20 +339,53 @@ export default function PrenotaPage() {
       .finally(() => setOpenDaysLoading(false));
   }, [step, currentMonth]);
 
+  // ── Contact Picker ───────────────────────────────────────────────────────
+
+  async function handlePickContact() {
+    if (!navigator.contacts) return;
+    setContactPickerLoading(true);
+    try {
+      const results = await navigator.contacts.select(["name", "tel"], { multiple: false });
+      if (results.length > 0) {
+        const contact = results[0];
+        const fullName = (contact.name?.[0] ?? "").trim();
+        if (fullName) {
+          const parts = fullName.split(/\s+/);
+          setFirstName(parts[0] ?? "");
+          setLastName(parts.slice(1).join(" ") ?? "");
+        }
+        const tel = (contact.tel?.[0] ?? "").trim();
+        if (tel) setPhone(tel.replace(/^\+39\s?/, "").trim());
+        // Clear any existing errors for these fields
+        setFieldErrors((fe) => ({ ...fe, firstName: "", lastName: "", phone: "" }));
+      }
+    } catch {
+      // User cancelled or permission denied — silent
+    } finally {
+      setContactPickerLoading(false);
+    }
+  }
+
   // ── Navigation ───────────────────────────────────────────────────────────
 
   function goBack() {
-    if (step === "date") setStep("party-size");
+    if (step === "party-size") setStep("meal-type");
+    else if (step === "date") setStep("party-size");
     else if (step === "time") setStep("date");
     else if (step === "info") setStep("time");
     else if (step === "summary") setStep("info");
   }
 
   function canGoBack() {
-    return ["date", "time", "info", "summary"].includes(step);
+    return ["party-size", "date", "time", "info", "summary"].includes(step);
   }
 
   // ── Handlers ─────────────────────────────────────────────────────────────
+
+  function handleMealTypeSelect(type: MealType) {
+    setMealType(type);
+    setStep("party-size");
+  }
 
   function handlePartySizeSelect(n: number) {
     setPartySize(n);
@@ -346,7 +398,6 @@ export default function PrenotaPage() {
     setSlots([]);
     setSlotsError(null);
     setStep("time");
-    // Fetch slots immediately
     if (partySize) fetchSlots(dateStr, partySize);
   }
 
@@ -361,9 +412,7 @@ export default function PrenotaPage() {
         setSlots([]);
       } else {
         const s: Slot[] = Array.isArray(data.slots) ? data.slots : [];
-        if (s.length === 0) {
-          setSlotsError("Nessun orario disponibile per questa data. Scegli un altro giorno.");
-        }
+        if (s.length === 0) setSlotsError("Nessun orario disponibile per questa data. Scegli un altro giorno.");
         setSlots(s);
       }
     } catch {
@@ -384,7 +433,8 @@ export default function PrenotaPage() {
     if (firstName.trim().length < 2) errs.firstName = "Inserisci il nome (min. 2 caratteri).";
     if (lastName.trim().length < 2) errs.lastName = "Inserisci il cognome (min. 2 caratteri).";
     const cleanPhone = phone.trim().replace(/\s+/g, " ");
-    if (!PHONE_RE.test(cleanPhone)) errs.phone = "Inserisci un numero di cellulare italiano valido (es. 333 1234567).";
+    if (!PHONE_RE.test(cleanPhone))
+      errs.phone = "Inserisci un cellulare italiano valido (es. 333 1234567).";
     if (notes.length > 500) errs.notes = "Note troppo lunghe (max 500 caratteri).";
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
@@ -395,11 +445,19 @@ export default function PrenotaPage() {
     setStep("summary");
   }
 
+  function buildFinalNotes(): string {
+    const parts: string[] = [];
+    if (mealType) parts.push(mealType);
+    if (notes.trim()) parts.push(notes.trim());
+    return parts.join(" | ");
+  }
+
   async function handleConfirm() {
     if (!selectedDate || !selectedTime || !partySize) return;
     setSubmitLoading(true);
     setSubmitError(null);
     const customerName = `${firstName.trim()} ${lastName.trim()}`;
+    const finalNotes = buildFinalNotes();
     try {
       const res = await fetch("/api/public/reservations", {
         method: "POST",
@@ -410,7 +468,7 @@ export default function PrenotaPage() {
           partySize,
           date: selectedDate,
           time: selectedTime,
-          notes: notes.trim() || undefined,
+          notes: finalNotes || undefined,
           source: "CHATBOT",
         }),
       });
@@ -435,7 +493,8 @@ export default function PrenotaPage() {
   }
 
   function handleReset() {
-    setStep("party-size");
+    setStep("meal-type");
+    setMealType(null);
     setPartySize(null);
     setSelectedDate(null);
     setSelectedTime(null);
@@ -461,13 +520,24 @@ export default function PrenotaPage() {
           {canGoBack() && (
             <button
               onClick={goBack}
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-amber-500 active:bg-amber-700 transition-colors"
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-amber-500 active:bg-amber-700 transition-colors shrink-0"
               aria-label="Indietro"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
           )}
-          <UtensilsCrossed className={`w-5 h-5 shrink-0 ${canGoBack() ? "" : "ml-1"}`} />
+          {/* Logo or icon */}
+          {restaurantLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={restaurantLogo}
+              alt={restaurantName}
+              className={`h-8 w-auto object-contain shrink-0 ${canGoBack() ? "" : "ml-1"}`}
+              style={{ filter: "brightness(0) invert(1)" }}
+            />
+          ) : (
+            <UtensilsCrossed className={`w-5 h-5 shrink-0 ${canGoBack() ? "" : "ml-1"}`} />
+          )}
           <span className="font-semibold text-base truncate flex-1">{restaurantName}</span>
           {step !== "confirmed" && (
             <span className="text-xs text-amber-200 shrink-0">Prenota online</span>
@@ -479,12 +549,44 @@ export default function PrenotaPage() {
       {/* Content */}
       <div className="flex-1 max-w-md mx-auto w-full pb-10">
 
+        {/* ── Step: Meal type ── */}
+        {step === "meal-type" && (
+          <div className="animate-fade-in-scale px-6 pt-6">
+            <h2 className="text-xl font-bold text-stone-800 leading-tight">Benvenuto!</h2>
+            <p className="text-sm text-stone-500 mt-1 mb-6">Cosa preferisci questa sera?</p>
+
+            <div className="flex flex-col gap-4">
+              <button
+                onClick={() => handleMealTypeSelect("Pizzeria")}
+                className="w-full py-7 rounded-3xl bg-white border-2 border-stone-200 flex flex-col items-center gap-3 shadow-sm hover:border-amber-400 hover:bg-amber-50 active:scale-[0.98] active:bg-amber-100 transition-all duration-150"
+              >
+                <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center">
+                  <Pizza className="w-9 h-9 text-orange-500" />
+                </div>
+                <span className="text-2xl font-bold text-stone-800">Pizzeria</span>
+                <span className="text-sm text-stone-400">Pizza al forno a legna</span>
+              </button>
+
+              <button
+                onClick={() => handleMealTypeSelect("Ristorante")}
+                className="w-full py-7 rounded-3xl bg-white border-2 border-stone-200 flex flex-col items-center gap-3 shadow-sm hover:border-amber-400 hover:bg-amber-50 active:scale-[0.98] active:bg-amber-100 transition-all duration-150"
+              >
+                <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center">
+                  <UtensilsCrossed className="w-9 h-9 text-amber-600" />
+                </div>
+                <span className="text-2xl font-bold text-stone-800">Ristorante</span>
+                <span className="text-sm text-stone-400">Cucina di pesce e terra</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── Step: Party size ── */}
         {step === "party-size" && (
           <div className="animate-fade-in-scale">
             <StepHeader
               title="Quante persone?"
-              subtitle="Seleziona il numero di ospiti per la prenotazione"
+              subtitle={`${mealType} · seleziona il numero di ospiti`}
             />
             <div className="px-6 mt-4 grid grid-cols-5 gap-3">
               {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
@@ -501,7 +603,7 @@ export default function PrenotaPage() {
               <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
                 <p className="font-medium">Gruppo di più di 10 persone?</p>
                 <p className="mt-1 text-amber-700">
-                  Per grandi gruppi ti chiediamo di contattarci telefonicamente per trovare la soluzione migliore.
+                  Per grandi gruppi ti chiediamo di contattarci telefonicamente.
                 </p>
               </div>
             </div>
@@ -513,7 +615,7 @@ export default function PrenotaPage() {
           <div className="animate-fade-in-scale">
             <StepHeader
               title="Scegli la data"
-              subtitle={`Prenotazione per ${partySize} ${partySize === 1 ? "persona" : "persone"}`}
+              subtitle={`${mealType} · ${partySize} ${partySize === 1 ? "persona" : "persone"}`}
             />
             <div className="mt-4">
               <CalendarGrid
@@ -560,7 +662,6 @@ export default function PrenotaPage() {
 
               {!slotsLoading && !slotsError && slots.length > 0 && (
                 <>
-                  {/* Group by shift */}
                   {(() => {
                     const shifts = Array.from(new Set(slots.map((s) => s.shift))).sort();
                     return shifts.map((shiftIdx) => {
@@ -600,132 +701,161 @@ export default function PrenotaPage() {
               title="I tuoi dati"
               subtitle="Inserisci nome e numero per completare la prenotazione"
             />
-            <div className="px-6 mt-5 space-y-4">
-              {/* First name */}
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1.5">
-                  <span className="flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-stone-400" />
-                    Nome *
-                  </span>
-                </label>
-                <input
-                  type="text"
-                  autoComplete="given-name"
-                  inputMode="text"
-                  value={firstName}
-                  onChange={(e) => {
-                    setFirstName(e.target.value);
-                    if (fieldErrors.firstName) setFieldErrors((fe) => ({ ...fe, firstName: "" }));
-                  }}
-                  placeholder="Mario"
-                  className={[
-                    "w-full px-4 py-3.5 rounded-xl border text-stone-800 text-base bg-white",
-                    "focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent",
-                    "placeholder:text-stone-300 transition-all",
-                    fieldErrors.firstName ? "border-red-400 bg-red-50" : "border-stone-200",
-                  ].join(" ")}
-                />
-                {fieldErrors.firstName && (
-                  <p className="mt-1 text-xs text-red-600">{fieldErrors.firstName}</p>
-                )}
-              </div>
+            <div className="px-6 mt-4">
+              {/* Contact Picker — shown only if API is supported */}
+              {contactPickerSupported && (
+                <button
+                  type="button"
+                  onClick={handlePickContact}
+                  disabled={contactPickerLoading}
+                  className="w-full mb-5 py-3.5 rounded-2xl bg-amber-600 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-amber-700 active:scale-[0.98] disabled:opacity-60 transition-all shadow-md"
+                >
+                  {contactPickerLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <BookUser className="w-4 h-4" />
+                  )}
+                  {contactPickerLoading ? "Apertura rubrica…" : "Importa dai contatti"}
+                </button>
+              )}
 
-              {/* Last name */}
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1.5">
-                  <span className="flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-stone-400" />
-                    Cognome *
-                  </span>
-                </label>
-                <input
-                  type="text"
-                  autoComplete="family-name"
-                  inputMode="text"
-                  value={lastName}
-                  onChange={(e) => {
-                    setLastName(e.target.value);
-                    if (fieldErrors.lastName) setFieldErrors((fe) => ({ ...fe, lastName: "" }));
-                  }}
-                  placeholder="Rossi"
-                  className={[
-                    "w-full px-4 py-3.5 rounded-xl border text-stone-800 text-base bg-white",
-                    "focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent",
-                    "placeholder:text-stone-300 transition-all",
-                    fieldErrors.lastName ? "border-red-400 bg-red-50" : "border-stone-200",
-                  ].join(" ")}
-                />
-                {fieldErrors.lastName && (
-                  <p className="mt-1 text-xs text-red-600">{fieldErrors.lastName}</p>
-                )}
-              </div>
-
-              {/* Phone */}
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1.5">
-                  <span className="flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-stone-400" />
-                    Cellulare *
-                  </span>
-                </label>
-                <input
-                  type="tel"
-                  autoComplete="tel"
-                  inputMode="tel"
-                  value={phone}
-                  onChange={(e) => {
-                    setPhone(e.target.value);
-                    if (fieldErrors.phone) setFieldErrors((fe) => ({ ...fe, phone: "" }));
-                  }}
-                  placeholder="333 1234567"
-                  className={[
-                    "w-full px-4 py-3.5 rounded-xl border text-stone-800 text-base bg-white",
-                    "focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent",
-                    "placeholder:text-stone-300 transition-all",
-                    fieldErrors.phone ? "border-red-400 bg-red-50" : "border-stone-200",
-                  ].join(" ")}
-                />
-                {fieldErrors.phone && (
-                  <p className="mt-1 text-xs text-red-600">{fieldErrors.phone}</p>
-                )}
-                <p className="mt-1 text-xs text-stone-400">Numero italiano, es. 333 1234567 o +39 333 1234567</p>
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1.5">
-                  <span className="flex items-center gap-1.5">
-                    <NotebookText className="w-3.5 h-3.5 text-stone-400" />
-                    Note (facoltativo)
-                  </span>
-                </label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => {
-                    setNotes(e.target.value);
-                    if (fieldErrors.notes) setFieldErrors((fe) => ({ ...fe, notes: "" }));
-                  }}
-                  placeholder="Allergie, occasioni speciali, richieste particolari…"
-                  rows={3}
-                  className={[
-                    "w-full px-4 py-3.5 rounded-xl border text-stone-800 text-sm bg-white resize-none",
-                    "focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent",
-                    "placeholder:text-stone-300 transition-all",
-                    fieldErrors.notes ? "border-red-400 bg-red-50" : "border-stone-200",
-                  ].join(" ")}
-                />
-                {fieldErrors.notes && (
-                  <p className="mt-1 text-xs text-red-600">{fieldErrors.notes}</p>
-                )}
-              </div>
-
-              <button
-                onClick={handleInfoSubmit}
-                className="w-full py-4 rounded-2xl bg-amber-600 text-white font-semibold text-base hover:bg-amber-700 active:scale-[0.98] transition-all duration-150 shadow-md mt-2"
+              <form
+                onSubmit={(e) => { e.preventDefault(); handleInfoSubmit(); }}
+                autoComplete="on"
+                className="space-y-4"
               >
-                Continua
-              </button>
+                {/* First name */}
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">
+                    <span className="flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-stone-400" />
+                      Nome *
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    name="given-name"
+                    autoComplete="given-name"
+                    inputMode="text"
+                    value={firstName}
+                    onChange={(e) => {
+                      setFirstName(e.target.value);
+                      if (fieldErrors.firstName) setFieldErrors((fe) => ({ ...fe, firstName: "" }));
+                    }}
+                    placeholder="Mario"
+                    className={[
+                      "w-full px-4 py-3.5 rounded-xl border text-stone-800 text-base bg-white",
+                      "focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent",
+                      "placeholder:text-stone-300 transition-all",
+                      fieldErrors.firstName ? "border-red-400 bg-red-50" : "border-stone-200",
+                    ].join(" ")}
+                  />
+                  {fieldErrors.firstName && (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.firstName}</p>
+                  )}
+                </div>
+
+                {/* Last name */}
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">
+                    <span className="flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-stone-400" />
+                      Cognome *
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    name="family-name"
+                    autoComplete="family-name"
+                    inputMode="text"
+                    value={lastName}
+                    onChange={(e) => {
+                      setLastName(e.target.value);
+                      if (fieldErrors.lastName) setFieldErrors((fe) => ({ ...fe, lastName: "" }));
+                    }}
+                    placeholder="Rossi"
+                    className={[
+                      "w-full px-4 py-3.5 rounded-xl border text-stone-800 text-base bg-white",
+                      "focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent",
+                      "placeholder:text-stone-300 transition-all",
+                      fieldErrors.lastName ? "border-red-400 bg-red-50" : "border-stone-200",
+                    ].join(" ")}
+                  />
+                  {fieldErrors.lastName && (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.lastName}</p>
+                  )}
+                </div>
+
+                {/* Phone */}
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">
+                    <span className="flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-stone-400" />
+                      Cellulare *
+                    </span>
+                  </label>
+                  <input
+                    type="tel"
+                    name="tel"
+                    autoComplete="tel"
+                    inputMode="tel"
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      if (fieldErrors.phone) setFieldErrors((fe) => ({ ...fe, phone: "" }));
+                    }}
+                    placeholder="333 1234567"
+                    className={[
+                      "w-full px-4 py-3.5 rounded-xl border text-stone-800 text-base bg-white",
+                      "focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent",
+                      "placeholder:text-stone-300 transition-all",
+                      fieldErrors.phone ? "border-red-400 bg-red-50" : "border-stone-200",
+                    ].join(" ")}
+                  />
+                  {fieldErrors.phone && (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.phone}</p>
+                  )}
+                  {!contactPickerSupported && (
+                    <p className="mt-1 text-xs text-stone-400">es. 333 1234567 o +39 333 1234567</p>
+                  )}
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">
+                    <span className="flex items-center gap-1.5">
+                      <NotebookText className="w-3.5 h-3.5 text-stone-400" />
+                      Note (facoltativo)
+                    </span>
+                  </label>
+                  <textarea
+                    name="notes"
+                    value={notes}
+                    onChange={(e) => {
+                      setNotes(e.target.value);
+                      if (fieldErrors.notes) setFieldErrors((fe) => ({ ...fe, notes: "" }));
+                    }}
+                    placeholder="Allergie, occasioni speciali, richieste particolari…"
+                    rows={3}
+                    className={[
+                      "w-full px-4 py-3.5 rounded-xl border text-stone-800 text-sm bg-white resize-none",
+                      "focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent",
+                      "placeholder:text-stone-300 transition-all",
+                      fieldErrors.notes ? "border-red-400 bg-red-50" : "border-stone-200",
+                    ].join(" ")}
+                  />
+                  {fieldErrors.notes && (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.notes}</p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-4 rounded-2xl bg-amber-600 text-white font-semibold text-base hover:bg-amber-700 active:scale-[0.98] transition-all duration-150 shadow-md mt-2"
+                >
+                  Continua
+                </button>
+              </form>
             </div>
           </div>
         )}
@@ -739,6 +869,15 @@ export default function PrenotaPage() {
             />
             <div className="px-6 mt-5">
               <div className="bg-white rounded-2xl border border-stone-200 shadow-sm divide-y divide-stone-100">
+                {mealType && (
+                  <SummaryRow
+                    icon={mealType === "Pizzeria"
+                      ? <Pizza className="w-4 h-4 text-amber-600" />
+                      : <UtensilsCrossed className="w-4 h-4 text-amber-600" />}
+                    label="Tipo"
+                    value={mealType}
+                  />
+                )}
                 <SummaryRow
                   icon={<CalendarDays className="w-4 h-4 text-amber-600" />}
                   label="Data"
@@ -817,11 +956,17 @@ export default function PrenotaPage() {
             <div className="mt-6 bg-white rounded-2xl border border-stone-200 shadow-sm w-full p-5 text-left">
               <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Dettagli prenotazione</p>
               <div className="space-y-2.5">
+                {mealType && (
+                  <div className="flex items-center gap-3">
+                    {mealType === "Pizzeria"
+                      ? <Pizza className="w-4 h-4 text-amber-600 shrink-0" />
+                      : <UtensilsCrossed className="w-4 h-4 text-amber-600 shrink-0" />}
+                    <span className="text-sm text-stone-700 font-medium">{mealType}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-3">
                   <CalendarDays className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span className="text-sm text-stone-700">
-                    {selectedDate ? formatDateIT(selectedDate) : ""}
-                  </span>
+                  <span className="text-sm text-stone-700">{selectedDate ? formatDateIT(selectedDate) : ""}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Clock className="w-4 h-4 text-amber-600 shrink-0" />
@@ -834,9 +979,7 @@ export default function PrenotaPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <Users className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span className="text-sm text-stone-700">
-                    {partySize} {partySize === 1 ? "persona" : "persone"}
-                  </span>
+                  <span className="text-sm text-stone-700">{partySize} {partySize === 1 ? "persona" : "persone"}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <User className="w-4 h-4 text-amber-600 shrink-0" />
@@ -846,9 +989,7 @@ export default function PrenotaPage() {
 
               <div className="mt-4 pt-4 border-t border-stone-100">
                 <p className="text-xs text-stone-400">Codice prenotazione</p>
-                <p className="text-2xl font-bold font-mono text-amber-700 tracking-wider mt-1">
-                  {booking.code}
-                </p>
+                <p className="text-2xl font-bold font-mono text-amber-700 tracking-wider mt-1">{booking.code}</p>
                 <p className="text-xs text-stone-400 mt-1">Conserva questo codice come riferimento</p>
               </div>
             </div>
@@ -858,10 +999,7 @@ export default function PrenotaPage() {
               <p className="text-xs text-stone-500 font-medium">Aggiungi al tuo calendario</p>
               <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={() => {
-                    handleAddToCalendar();
-                    setCalendarAdded(true);
-                  }}
+                  onClick={() => { handleAddToCalendar(); setCalendarAdded(true); }}
                   className={[
                     "py-3.5 rounded-2xl border-2 text-sm font-medium flex items-center justify-center gap-2 transition-all duration-150",
                     calendarAdded
@@ -882,13 +1020,7 @@ export default function PrenotaPage() {
                   rel="noopener noreferrer"
                   className="py-3.5 rounded-2xl border-2 border-stone-200 bg-white text-stone-700 text-sm font-medium flex items-center justify-center gap-2 hover:border-amber-400 hover:bg-amber-50 active:scale-95 transition-all duration-150"
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                    <line x1="16" y1="2" x2="16" y2="6"/>
-                    <line x1="8" y1="2" x2="8" y2="6"/>
-                    <line x1="3" y1="10" x2="21" y2="10"/>
-                    <path d="M12 14h.01M16 14h.01M8 14h.01M12 18h.01M16 18h.01M8 18h.01"/>
-                  </svg>
+                  <CalendarDays className="w-4 h-4" />
                   Google Cal
                 </a>
               </div>
@@ -910,15 +1042,7 @@ export default function PrenotaPage() {
 
 // ── SummaryRow ─────────────────────────────────────────────────────────────
 
-function SummaryRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
+function SummaryRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-start gap-3 px-5 py-3.5">
       <span className="shrink-0 mt-0.5">{icon}</span>
