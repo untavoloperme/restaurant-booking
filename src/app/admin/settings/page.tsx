@@ -38,8 +38,6 @@ interface SettingsData {
   "slot.driftMinutes": string;
   "whatsapp.enabled": string;
   "whatsapp.service.enabled": string;
-  "whatsapp.message": string;
-  "whatsapp.booking.url": string;
   "whatsapp.autoresponder.keywords": string;
 }
 
@@ -58,8 +56,6 @@ export default function SettingsPage() {
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // WhatsApp state
-  const [waMessageInput, setWaMessageInput] = useState("");
-  const [waBookingUrlInput, setWaBookingUrlInput] = useState("");
   const [waKeywordsInput, setWaKeywordsInput] = useState("");
   const [waSaving, setWaSaving] = useState(false);
   const waSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,8 +78,6 @@ export default function SettingsPage() {
         setRestaurantPhoneInput(data["restaurant.phone"] ?? "");
         setDriftThreshold(data["slot.driftThreshold"] ?? "3");
         setDriftMinutes(data["slot.driftMinutes"] ?? "15");
-        setWaMessageInput(data["whatsapp.message"] || `🍽️ Prenota il tuo tavolo in pochi click!\n\n👇 Clicca qui per prenotare:\n{link}\n\nA presto! 😊`);
-        setWaBookingUrlInput(data["whatsapp.booking.url"] || `${window.location.origin}/prenota`);
         setWaKeywordsInput(data["whatsapp.autoresponder.keywords"] || "prenota,prenotazione,tavolo,menu,info,ciao,buongiorno,salve,buonasera");
       });
 
@@ -221,37 +215,21 @@ export default function SettingsPage() {
     }
   }
 
-  function onWaMessageChange(value: string) {
-    setWaMessageInput(value);
-    if (waSaveTimer.current) clearTimeout(waSaveTimer.current);
-    waSaveTimer.current = setTimeout(() => saveWaSettings(value, waBookingUrlInput, waKeywordsInput), 800);
-  }
-
-  function onWaBookingUrlChange(value: string) {
-    setWaBookingUrlInput(value);
-    if (waSaveTimer.current) clearTimeout(waSaveTimer.current);
-    waSaveTimer.current = setTimeout(() => saveWaSettings(waMessageInput, value, waKeywordsInput), 800);
-  }
-
   function onWaKeywordsChange(value: string) {
     setWaKeywordsInput(value);
     if (waSaveTimer.current) clearTimeout(waSaveTimer.current);
-    waSaveTimer.current = setTimeout(() => saveWaSettings(waMessageInput, waBookingUrlInput, value), 800);
+    waSaveTimer.current = setTimeout(() => saveWaSettings(value), 800);
   }
 
-  async function saveWaSettings(message: string, bookingUrl: string, keywords: string) {
+  async function saveWaSettings(keywords: string) {
     setWaSaving(true);
     try {
       await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          "whatsapp.message": message,
-          "whatsapp.booking.url": bookingUrl,
-          "whatsapp.autoresponder.keywords": keywords,
-        }),
+        body: JSON.stringify({ "whatsapp.autoresponder.keywords": keywords }),
       });
-      setSettings((s) => s ? { ...s, "whatsapp.message": message, "whatsapp.booking.url": bookingUrl, "whatsapp.autoresponder.keywords": keywords } : s);
+      setSettings((s) => s ? { ...s, "whatsapp.autoresponder.keywords": keywords } : s);
     } catch {
       toast({ title: "Errore salvataggio", variant: "destructive" });
     } finally {
@@ -947,7 +925,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <Label className="text-sm font-medium">Parole chiave autoresponder</Label>
               <p className="text-xs text-muted-foreground">
-                Quando un cliente invia un messaggio contenente una di queste parole, riceve automaticamente il link di prenotazione. Separa con virgola.
+                Quando un cliente invia un messaggio contenente una di queste parole, riceve automaticamente il link di prenotazione. Separa con virgola. Il messaggio si configura nel backstage.
               </p>
               <Input
                 value={waKeywordsInput}
@@ -955,53 +933,8 @@ export default function SettingsPage() {
                 placeholder="prenota,tavolo,info,ciao,buongiorno…"
                 className="font-mono text-sm"
               />
-            </div>
-
-            {/* Message template */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Messaggio autoresponder</Label>
-              <p className="text-xs text-muted-foreground">
-                Usa <code className="bg-muted px-1 rounded text-xs">{"{link}"}</code> per inserire il link di prenotazione. Il logo del ristorante viene allegato automaticamente. Dopo aver salvato, usa il pulsante <strong>Sincronizza autoresponder</strong> nel backstage.
-              </p>
-              <textarea
-                value={waMessageInput}
-                onChange={e => onWaMessageChange(e.target.value)}
-                rows={6}
-                className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                placeholder="es. 🍽️ Prenota qui: {link}"
-              />
               {waSaving && <p className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…</p>}
             </div>
-
-            {/* Booking URL */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">URL pagina di prenotazione</Label>
-              <Input
-                value={waBookingUrlInput}
-                onChange={e => onWaBookingUrlChange(e.target.value)}
-                placeholder="https://tuodominio.it/prenota"
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">Link incluso nel messaggio autoresponder.</p>
-            </div>
-
-            {/* Preview */}
-            {waMessageInput && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Anteprima messaggio</Label>
-                <div className="rounded-xl bg-[#dcf8c6] text-gray-900 p-4 text-sm leading-relaxed max-w-xs shadow space-y-2">
-                  {settings["restaurant.logo"] && (
-                    <div className="rounded-lg overflow-hidden bg-white/50 flex items-center justify-center h-16 w-full">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={settings["restaurant.logo"]} alt="Logo" className="h-full w-auto object-contain" />
-                    </div>
-                  )}
-                  <p className="whitespace-pre-wrap break-words">
-                    {waMessageInput.replace("{link}", `${waBookingUrlInput}?phone=3XXXXXXXXXX`)}
-                  </p>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}

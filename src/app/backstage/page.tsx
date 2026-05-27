@@ -80,6 +80,8 @@ export default function BackstagePage() {
   const [waAccounts, setWaAccounts] = useState<{ instance_id: string; status: string; name?: string }[]>([]);
   const [waAccountsLoading, setWaAccountsLoading] = useState(false);
   const [waAccountsError, setWaAccountsError] = useState("");
+  const [waMessage, setWaMessage] = useState("");
+  const [waBookingUrl, setWaBookingUrl] = useState("");
   const [waSaving, setWaSaving] = useState(false);
   const [waMsg, setWaMsg] = useState("");
   const [waSyncLoading, setWaSyncLoading] = useState(false);
@@ -119,6 +121,8 @@ export default function BackstagePage() {
       setWaEnabled(wa.enabled ?? false);
       setWaHasToken(wa.hasToken ?? false);
       setWaInstanceId(wa.instanceId ?? "");
+      setWaMessage(wa.message ?? "");
+      setWaBookingUrl(wa.bookingUrl ?? "");
     }).catch(() => router.push("/backstage/login"));
   }, [router]);
 
@@ -270,6 +274,8 @@ export default function BackstagePage() {
       const body: Record<string, unknown> = {
         enabled: waEnabled,
         instanceId: waInstanceId,
+        message: waMessage,
+        bookingUrl: waBookingUrl,
       };
       if (waTokenInput.trim()) body.token = waTokenInput.trim();
 
@@ -282,7 +288,6 @@ export default function BackstagePage() {
       setWaMsg("Impostazioni salvate");
       setWaTokenInput("");
       setWaHasToken(true);
-      // Reload accounts if we just saved a new token
       if (body.token) await loadWaAccounts(body.token as string);
     } catch (e) {
       setWaMsg((e as Error).message);
@@ -736,6 +741,49 @@ export default function BackstagePage() {
                 {waAccountsError && (
                   <p className="text-xs text-red-400">{waAccountsError}</p>
                 )}
+              </div>
+            )}
+
+            {/* Autoresponder message */}
+            <div className="space-y-2 border-t border-slate-700/50 pt-4">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                Messaggio autoresponder
+              </p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Usa <code className="bg-slate-800 px-1 rounded font-mono">{"{link}"}</code> per il link di prenotazione. Il logo del ristorante viene allegato automaticamente.
+              </p>
+              <textarea
+                value={waMessage}
+                onChange={e => setWaMessage(e.target.value)}
+                rows={5}
+                placeholder={"🍽️ Prenota il tuo tavolo!\n\n👇 {link}\n\nA presto! 😊"}
+                className="w-full resize-none rounded-lg border border-slate-700 bg-slate-900 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            {/* Booking URL */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                URL pagina di prenotazione
+              </label>
+              <Input
+                type="text"
+                placeholder="https://tuodominio.it/prenota"
+                value={waBookingUrl}
+                onChange={e => setWaBookingUrl(e.target.value)}
+                className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono"
+              />
+            </div>
+
+            {/* Preview */}
+            {waMessage && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Anteprima</p>
+                <div className="rounded-xl p-4 text-sm leading-relaxed max-w-xs shadow" style={{ background: "#dcf8c6", color: "#111" }}>
+                  <p className="whitespace-pre-wrap break-words">
+                    {waMessage.replace("{link}", waBookingUrl || "https://…/prenota")}
+                  </p>
+                </div>
               </div>
             )}
 

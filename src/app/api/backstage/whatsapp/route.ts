@@ -6,6 +6,8 @@ const WA_KEYS = [
   "whatsapp.enabled",
   "whatsapp.api.token",
   "whatsapp.instance.id",
+  "whatsapp.message",
+  "whatsapp.booking.url",
 ] as const;
 
 export async function GET() {
@@ -19,14 +21,14 @@ export async function GET() {
   const maskedToken = token.length > 4 ? `••••${token.slice(-4)}` : token ? "••••" : "";
 
   const baseUrl = (process.env.NEXTAUTH_URL ?? "").replace(/\/$/, "");
-  const webhookUrl = `${baseUrl}/api/public/whatsapp/webhook`;
 
   return NextResponse.json({
     enabled: map["whatsapp.enabled"] === "true",
     token: maskedToken,
     hasToken: token.length > 0,
     instanceId: map["whatsapp.instance.id"] ?? "",
-    webhookUrl,
+    message: map["whatsapp.message"] ?? "",
+    bookingUrl: map["whatsapp.booking.url"] || `${baseUrl}/prenota`,
   });
 }
 
@@ -46,6 +48,12 @@ export async function PATCH(req: Request) {
   }
   if (typeof body.instanceId === "string") {
     updates.push({ key: "whatsapp.instance.id", value: body.instanceId.trim() });
+  }
+  if (typeof body.message === "string") {
+    updates.push({ key: "whatsapp.message", value: body.message });
+  }
+  if (typeof body.bookingUrl === "string") {
+    updates.push({ key: "whatsapp.booking.url", value: body.bookingUrl.trim() });
   }
 
   for (const { key, value } of updates) {
