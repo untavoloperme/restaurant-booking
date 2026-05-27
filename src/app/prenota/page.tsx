@@ -29,6 +29,8 @@ import {
   RefreshCw,
   Pizza,
   BookUser,
+  XCircle,
+  MessageSquare,
 } from "lucide-react";
 
 // ── Contact Picker API types ───────────────────────────────────────────────
@@ -58,7 +60,7 @@ const PHONE_RE = /^(\+39\s?)?3\d{2}[\s-]?\d{6,7}$/;
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type MealType = "Pizzeria" | "Ristorante";
-type Step = "meal-type" | "party-size" | "date" | "time" | "info" | "summary" | "confirmed";
+type Step = "meal-type" | "party-size" | "date" | "time" | "info" | "summary" | "verify" | "confirmed";
 
 interface Slot { time: string; shift: number }
 interface BookingResult { code: string; time: string; table: string | null }
@@ -137,7 +139,9 @@ function googleCalendarUrl(
 
 function ProgressDots({ step }: { step: Step }) {
   const steps: Step[] = ["meal-type", "party-size", "date", "time", "info", "summary"];
-  const current = steps.indexOf(step === "confirmed" ? "summary" : step);
+  const current = steps.indexOf(
+    step === "confirmed" || step === "verify" ? "summary" : step
+  );
   return (
     <div className="flex items-center justify-center gap-1.5 py-3">
       {steps.map((s, i) => (
@@ -297,6 +301,11 @@ function PrenotaPageInner() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState<string | null>(null);
   const [booking, setBooking] = useState<BookingResult | null>(null);
+  const [verificationReservationId, setVerificationReservationId] = useState<string | null>(null);
+  const [verifyToken, setVerifyToken] = useState("");
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifyCancelled, setVerifyCancelled] = useState(false);
   const [restaurantName, setRestaurantName] = useState("Ristorante");
   const [restaurantLogo, setRestaurantLogo] = useState("");
   const [calendarAdded, setCalendarAdded] = useState(false);
@@ -492,7 +501,15 @@ function PrenotaPageInner() {
         return;
       }
       setBooking({ code: data.code, time: data.time, table: data.table ?? null });
-      setStep("confirmed");
+      if (data.requiresVerification) {
+        setVerificationReservationId(data.id);
+        setVerifyToken("");
+        setVerifyError(null);
+        setVerifyCancelled(false);
+        setStep("verify");
+      } else {
+        setStep("confirmed");
+      }
     } catch {
       setSubmitError("Errore di rete. Verifica la connessione e riprova.");
     } finally {
@@ -504,6 +521,33 @@ function PrenotaPageInner() {
     if (!booking || !selectedDate || !partySize) return;
     const ics = generateICS(selectedDate, booking.time, partySize, booking.code, restaurantName);
     triggerICSDownload(ics, `prenotazione-${booking.code}.ics`);
+  }
+
+  async function handleVerifyToken() {
+    if (!verificationReservationId || verifyToken.replace(/\s/g, "").length < 4) return;
+    setVerifyLoading(true);
+    setVerifyError(null);
+    try {
+      const res = await fetch("/api/public/whatsapp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reservationId: verificationReservationId, token: verifyToken.trim() }),
+      });
+      const data = await res.json();
+      if (data.verified) {
+        setStep("confirmed");
+      } else if (data.cancelled) {
+        setVerifyCancelled(true);
+      } else {
+        const left = data.attemptsLeft ?? 1;
+        setVerifyError(`Codice non corretto. ${left === 1 ? "Hai ancora 1 tentativo." : `Hai ancora ${left} tentativi.`}`);
+        setVerifyToken("");
+      }
+    } catch {
+      setVerifyError("Errore di rete. Riprova.");
+    } finally {
+      setVerifyLoading(false);
+    }
   }
 
   function handleReset() {
@@ -520,6 +564,10 @@ function PrenotaPageInner() {
     setBooking(null);
     setCalendarAdded(false);
     setSubmitError(null);
+    setVerificationReservationId(null);
+    setVerifyToken("");
+    setVerifyError(null);
+    setVerifyCancelled(false);
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -954,6 +1002,66 @@ function PrenotaPageInner() {
                 Modifica dati
               </button>
             </div>
+          </div>
+        )}
+
+        {/* ── Step: Verify phone ── */}
+        {step === "verify" && (
+          <div className="animate-fade-in-scale px-6 pt-8 flex flex-col items-center text-center">
+            {verifyCancelled ? (
+              <>
+                <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mb-5">
+                  <XCircle className="w-12 h-12 text-red-400" />
+                </div>
+                <h2 className="text-2xl font-bold text-stone-800">Prenotazione annullata</h2>
+                <p className="text-stone-500 mt-2 text-sm leading-relaxed">
+                  Il numero di telefono non è stato verificato correttamente.<br />
+                  Riceverai un messaggio WhatsApp di conferma dell&apos;annullamento.
+                </p>
+                <button
+                  onClick={handleReset}
+                  className="mt-8 w-full py-4 rounded-2xl bg-amber-500 text-white font-semibold text-base shadow-md hover:bg-amber-600 active:scale-[0.98] transition-all"
+                >
+                  Ricomincia
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mb-5">
+                  <MessageSquare className="w-10 h-10 text-amber-500" />
+                </div>
+                <h2 className="text-2xl font-bold text-stone-800">Verifica il tuo numero</h2>
+                <p className="text-stone-500 mt-2 text-sm leading-relaxed">
+                  Abbiamo inviato un codice via WhatsApp al numero <strong>{phone}</strong>.<br />
+                  Inseriscilo qui sotto per confermare la prenotazione.
+                </p>
+
+                <div className="mt-6 w-full space-y-3">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    placeholder="Codice a 6 cifre"
+                    value={verifyToken}
+                    onChange={e => setVerifyToken(e.target.value.replace(/\D/g, ""))}
+                    onKeyDown={e => { if (e.key === "Enter") handleVerifyToken(); }}
+                    className="w-full text-center text-2xl font-mono tracking-widest py-4 rounded-2xl border-2 border-stone-200 bg-white text-stone-800 focus:border-amber-400 focus:outline-none transition-colors"
+                  />
+                  {verifyError && (
+                    <p className="text-sm text-red-500">{verifyError}</p>
+                  )}
+                  <button
+                    onClick={handleVerifyToken}
+                    disabled={verifyLoading || verifyToken.length < 4}
+                    className="w-full py-4 rounded-2xl bg-amber-500 text-white font-semibold text-base shadow-md hover:bg-amber-600 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {verifyLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                    Conferma prenotazione
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 

@@ -126,3 +126,42 @@ export function isFromMe(body: Record<string, unknown>): boolean {
     (body.data as Record<string, unknown> | undefined)?.fromMe === true
   );
 }
+
+export function generateToken(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+interface SyncAutoresponderParams {
+  token: string;
+  instanceId: string;
+  keywords: string;
+  message: string;
+  mediaUrl?: string;
+}
+
+export async function syncAutoresponder(params: SyncAutoresponderParams): Promise<{ ok: boolean; raw?: unknown }> {
+  const { token, instanceId, keywords, message, mediaUrl } = params;
+  const body: Record<string, string> = {
+    keywords,
+    caption: message,
+    instance_id: instanceId,
+    type_search: "contains",
+    send_to: "sender",
+  };
+  if (mediaUrl) body.media = mediaUrl;
+
+  const res = await fetch(`${SENDAPP_BASE}/chatbot`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const raw = await res.json().catch(() => null);
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[sendapp/syncAutoresponder] status:", res.status, "body:", JSON.stringify(raw).slice(0, 300));
+  }
+  if (!res.ok) throw new Error(`SendApp chatbot error ${res.status}: ${JSON.stringify(raw)}`);
+  return { ok: true, raw };
+}

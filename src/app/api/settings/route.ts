@@ -16,6 +16,7 @@ const DEFAULTS: Record<string, string> = {
   "whatsapp.service.enabled": "false",
   "whatsapp.message": "",
   "whatsapp.booking.url": "",
+  "whatsapp.autoresponder.keywords": "prenota,prenotazione,tavolo,menu,info,ciao,buongiorno,salve,buonasera",
 };
 
 // Read-only keys exposed in GET but not writable via PATCH

@@ -40,6 +40,7 @@ interface SettingsData {
   "whatsapp.service.enabled": string;
   "whatsapp.message": string;
   "whatsapp.booking.url": string;
+  "whatsapp.autoresponder.keywords": string;
 }
 
 export default function SettingsPage() {
@@ -59,6 +60,7 @@ export default function SettingsPage() {
   // WhatsApp state
   const [waMessageInput, setWaMessageInput] = useState("");
   const [waBookingUrlInput, setWaBookingUrlInput] = useState("");
+  const [waKeywordsInput, setWaKeywordsInput] = useState("");
   const [waSaving, setWaSaving] = useState(false);
   const waSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -80,8 +82,9 @@ export default function SettingsPage() {
         setRestaurantPhoneInput(data["restaurant.phone"] ?? "");
         setDriftThreshold(data["slot.driftThreshold"] ?? "3");
         setDriftMinutes(data["slot.driftMinutes"] ?? "15");
-        setWaMessageInput(data["whatsapp.message"] || `🍽️ Prenota il tuo tavolo in pochi click!\n\n👇 Clicca qui per prenotare:\n{link}\n\nIl tuo numero è già inserito! ✅\n\nA presto! 😊`);
+        setWaMessageInput(data["whatsapp.message"] || `🍽️ Prenota il tuo tavolo in pochi click!\n\n👇 Clicca qui per prenotare:\n{link}\n\nA presto! 😊`);
         setWaBookingUrlInput(data["whatsapp.booking.url"] || `${window.location.origin}/prenota`);
+        setWaKeywordsInput(data["whatsapp.autoresponder.keywords"] || "prenota,prenotazione,tavolo,menu,info,ciao,buongiorno,salve,buonasera");
       });
 
     fetch("/api/auth/totp/status")
@@ -221,24 +224,34 @@ export default function SettingsPage() {
   function onWaMessageChange(value: string) {
     setWaMessageInput(value);
     if (waSaveTimer.current) clearTimeout(waSaveTimer.current);
-    waSaveTimer.current = setTimeout(() => saveWaSettings(value, waBookingUrlInput), 800);
+    waSaveTimer.current = setTimeout(() => saveWaSettings(value, waBookingUrlInput, waKeywordsInput), 800);
   }
 
   function onWaBookingUrlChange(value: string) {
     setWaBookingUrlInput(value);
     if (waSaveTimer.current) clearTimeout(waSaveTimer.current);
-    waSaveTimer.current = setTimeout(() => saveWaSettings(waMessageInput, value), 800);
+    waSaveTimer.current = setTimeout(() => saveWaSettings(waMessageInput, value, waKeywordsInput), 800);
   }
 
-  async function saveWaSettings(message: string, bookingUrl: string) {
+  function onWaKeywordsChange(value: string) {
+    setWaKeywordsInput(value);
+    if (waSaveTimer.current) clearTimeout(waSaveTimer.current);
+    waSaveTimer.current = setTimeout(() => saveWaSettings(waMessageInput, waBookingUrlInput, value), 800);
+  }
+
+  async function saveWaSettings(message: string, bookingUrl: string, keywords: string) {
     setWaSaving(true);
     try {
       await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ "whatsapp.message": message, "whatsapp.booking.url": bookingUrl }),
+        body: JSON.stringify({
+          "whatsapp.message": message,
+          "whatsapp.booking.url": bookingUrl,
+          "whatsapp.autoresponder.keywords": keywords,
+        }),
       });
-      setSettings((s) => s ? { ...s, "whatsapp.message": message, "whatsapp.booking.url": bookingUrl } : s);
+      setSettings((s) => s ? { ...s, "whatsapp.message": message, "whatsapp.booking.url": bookingUrl, "whatsapp.autoresponder.keywords": keywords } : s);
     } catch {
       toast({ title: "Errore salvataggio", variant: "destructive" });
     } finally {
@@ -919,9 +932,9 @@ export default function SettingsPage() {
             {/* Service on/off */}
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-1">
-                <Label className="text-sm font-medium">Risposte automatiche</Label>
+                <Label className="text-sm font-medium">Verifica telefono e autoresponder</Label>
                 <p className="text-xs text-muted-foreground">
-                  Quando attivo, ogni messaggio WhatsApp ricevuto ottiene una risposta automatica con il link di prenotazione.
+                  Quando attivo: alla fine della prenotazione il cliente riceve un codice via WhatsApp da inserire per confermare. L&apos;autoresponder risponde automaticamente ai messaggi in arrivo con il link di prenotazione.
                 </p>
               </div>
               <Switch
@@ -930,11 +943,25 @@ export default function SettingsPage() {
               />
             </div>
 
+            {/* Autoresponder keywords */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Parole chiave autoresponder</Label>
+              <p className="text-xs text-muted-foreground">
+                Quando un cliente invia un messaggio contenente una di queste parole, riceve automaticamente il link di prenotazione. Separa con virgola.
+              </p>
+              <Input
+                value={waKeywordsInput}
+                onChange={e => onWaKeywordsChange(e.target.value)}
+                placeholder="prenota,tavolo,info,ciao,buongiorno…"
+                className="font-mono text-sm"
+              />
+            </div>
+
             {/* Message template */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Messaggio da inviare</Label>
+              <Label className="text-sm font-medium">Messaggio autoresponder</Label>
               <p className="text-xs text-muted-foreground">
-                Usa <code className="bg-muted px-1 rounded text-xs">{"{link}"}</code> per inserire il link di prenotazione personalizzato. Il logo del ristorante viene allegato automaticamente.
+                Usa <code className="bg-muted px-1 rounded text-xs">{"{link}"}</code> per inserire il link di prenotazione. Il logo del ristorante viene allegato automaticamente. Dopo aver salvato, usa il pulsante <strong>Sincronizza autoresponder</strong> nel backstage.
               </p>
               <textarea
                 value={waMessageInput}
@@ -955,7 +982,7 @@ export default function SettingsPage() {
                 placeholder="https://tuodominio.it/prenota"
                 className="font-mono text-sm"
               />
-              <p className="text-xs text-muted-foreground">Il numero del cliente viene aggiunto automaticamente come parametro <code className="bg-muted px-1 rounded">?phone=…</code></p>
+              <p className="text-xs text-muted-foreground">Link incluso nel messaggio autoresponder.</p>
             </div>
 
             {/* Preview */}

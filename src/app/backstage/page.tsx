@@ -8,7 +8,7 @@ import {
   UtensilsCrossed, Settings, Users, ShieldCheck, ShieldOff,
   LogOut, Loader2, ToggleLeft, ToggleRight, Lock,
   GitBranch, RefreshCw, CheckCircle2, AlertCircle, Terminal,
-  Database, Trash2, Globe, MessageSquare, Smartphone, Copy, Check,
+  Database, Trash2, Globe, MessageSquare, Smartphone,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -77,13 +77,13 @@ export default function BackstagePage() {
   const [waHasToken, setWaHasToken] = useState(false);
   const [waTokenInput, setWaTokenInput] = useState("");
   const [waInstanceId, setWaInstanceId] = useState("");
-  const [waWebhookUrl, setWaWebhookUrl] = useState("");
   const [waAccounts, setWaAccounts] = useState<{ instance_id: string; status: string; name?: string }[]>([]);
   const [waAccountsLoading, setWaAccountsLoading] = useState(false);
   const [waAccountsError, setWaAccountsError] = useState("");
   const [waSaving, setWaSaving] = useState(false);
   const [waMsg, setWaMsg] = useState("");
-  const [waCopied, setWaCopied] = useState(false);
+  const [waSyncLoading, setWaSyncLoading] = useState(false);
+  const [waSyncMsg, setWaSyncMsg] = useState("");
 
   const didFetch = useRef(false);
 
@@ -119,7 +119,6 @@ export default function BackstagePage() {
       setWaEnabled(wa.enabled ?? false);
       setWaHasToken(wa.hasToken ?? false);
       setWaInstanceId(wa.instanceId ?? "");
-      setWaWebhookUrl(wa.webhookUrl ?? "");
     }).catch(() => router.push("/backstage/login"));
   }, [router]);
 
@@ -292,10 +291,19 @@ export default function BackstagePage() {
     }
   }
 
-  async function copyWebhookUrl() {
-    await navigator.clipboard.writeText(waWebhookUrl);
-    setWaCopied(true);
-    setTimeout(() => setWaCopied(false), 2000);
+  async function syncWaAutoresponder() {
+    setWaSyncLoading(true);
+    setWaSyncMsg("");
+    try {
+      const res = await fetch("/api/backstage/whatsapp/autoresponder", { method: "POST" });
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Errore sincronizzazione");
+      setWaSyncMsg("Autoresponder sincronizzato con successo");
+    } catch (e) {
+      setWaSyncMsg((e as Error).message);
+    } finally {
+      setWaSyncLoading(false);
+    }
   }
 
   // TOTP handlers
@@ -748,28 +756,28 @@ export default function BackstagePage() {
               </p>
             )}
 
-            {/* Webhook URL */}
-            {waWebhookUrl && (
-              <div className="space-y-2 border-t border-slate-700/50 pt-4">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                  URL Webhook (da configurare in SendApp)
+            {/* Sync autoresponder */}
+            <div className="space-y-2 border-t border-slate-700/50 pt-4">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                Autoresponder SendApp
+              </p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Sincronizza le parole chiave e il messaggio configurati nell&apos;admin con il chatbot di SendApp. Da eseguire ogni volta che si aggiornano le impostazioni.
+              </p>
+              <button
+                onClick={syncWaAutoresponder}
+                disabled={waSyncLoading || !waHasToken}
+                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-emerald-700 text-emerald-400 hover:bg-emerald-600/10 transition-colors disabled:opacity-50"
+              >
+                {waSyncLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+                Sincronizza autoresponder
+              </button>
+              {waSyncMsg && (
+                <p className="text-xs text-slate-300 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700 font-mono">
+                  {waSyncMsg}
                 </p>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Incolla questo URL nella dashboard SendApp → impostazioni account → campo Webhook URL / Notification URL.
-                  Ogni messaggio WhatsApp in arrivo verrà inoltrato qui.
-                </p>
-                <div className="flex items-center gap-2 bg-slate-800/70 rounded-lg border border-slate-700 px-3 py-2">
-                  <code className="text-xs font-mono text-indigo-300 flex-1 break-all">{waWebhookUrl}</code>
-                  <button
-                    onClick={copyWebhookUrl}
-                    className="shrink-0 text-slate-400 hover:text-slate-200 transition-colors"
-                    title="Copia URL"
-                  >
-                    {waCopied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </section>
 

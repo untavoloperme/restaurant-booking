@@ -7,6 +7,7 @@ import { resolveSlot } from "@/lib/slots";
 import { startOfDay, addMinutes, format } from "date-fns";
 import { nanoid } from "nanoid";
 import { emitEvent } from "@/lib/sse";
+import { getWhatsappConfig, sendMessage, generateToken } from "@/lib/sendapp";
 
 function generateCode(): string {
   return "BCK-" + nanoid(6).toUpperCase();
@@ -69,6 +70,11 @@ export async function POST(req: Request) {
     attempts++;
   }
 
+  // Check if WhatsApp phone verification is required
+  const waCfg = await getWhatsappConfig();
+  const requiresVerification = waCfg.enabled && waCfg.serviceEnabled && !!waCfg.token && !!waCfg.instanceId;
+  const verificationCode = requiresVerification ? generateToken() : undefined;
+
   const reservation = await prisma.reservation.create({
     data: {
       code,
@@ -80,11 +86,27 @@ export async function POST(req: Request) {
       tableId,
       notes,
       source,
+      ...(requiresVerification
+        ? { verificationCode, phoneVerified: false, verificationAttempts: 0 }
+        : {}),
     },
     include: { table: { include: { room: true } } },
   });
 
   emitEvent("reservation_created", { id: reservation.id, date: dateStr, time: effectiveTime });
+
+  if (requiresVerification && verificationCode) {
+    try {
+      await sendMessage({
+        token: waCfg.token,
+        instanceId: waCfg.instanceId,
+        number: phone.trim().replace(/\D/g, ""),
+        message: `Il tuo codice di conferma prenotazione è: *${verificationCode}*\n\nInseriscilo nella pagina di riepilogo per confermare il tuo tavolo.`,
+      });
+    } catch (err) {
+      console.error("[reservations] WhatsApp token send failed:", err);
+    }
+  }
 
   return NextResponse.json(
     {
@@ -95,6 +117,7 @@ export async function POST(req: Request) {
       date: dateStr,
       time: effectiveTime,
       table: reservation.table ? `${reservation.table.name} — ${reservation.table.room.name}` : null,
+      requiresVerification: requiresVerification || undefined,
     },
     { status: 201 }
   );
