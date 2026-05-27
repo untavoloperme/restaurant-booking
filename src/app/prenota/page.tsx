@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   format,
   addMonths,
@@ -275,7 +276,8 @@ function CalendarGrid({
 
 // ── Main page ──────────────────────────────────────────────────────────────
 
-export default function PrenotaPage() {
+function PrenotaPageInner() {
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>("meal-type");
   const [mealType, setMealType] = useState<MealType | null>(null);
   const [partySize, setPartySize] = useState<number | null>(null);
@@ -283,7 +285,10 @@ export default function PrenotaPage() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(() => {
+    // Will be overridden by useEffect for SSR safety
+    return "";
+  });
   const [notes, setNotes] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -318,6 +323,15 @@ export default function PrenotaPage() {
       })
       .catch(() => {});
   }, []);
+
+  // Pre-fill phone from ?phone= query param (set by WhatsApp auto-reply link)
+  useEffect(() => {
+    const rawPhone = searchParams.get("phone");
+    if (!rawPhone) return;
+    let digits = rawPhone.replace(/\D/g, "");
+    if (digits.startsWith("39") && digits.length > 10) digits = digits.slice(2);
+    if (digits.length >= 9) setPhone(digits);
+  }, [searchParams]);
 
   // Check Contact Picker API support
   useEffect(() => {
@@ -1037,6 +1051,14 @@ export default function PrenotaPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function PrenotaPage() {
+  return (
+    <Suspense>
+      <PrenotaPageInner />
+    </Suspense>
   );
 }
 

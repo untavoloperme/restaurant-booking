@@ -8,7 +8,7 @@ import {
   UtensilsCrossed, Settings, Users, ShieldCheck, ShieldOff,
   LogOut, Loader2, ToggleLeft, ToggleRight, Lock,
   GitBranch, RefreshCw, CheckCircle2, AlertCircle, Terminal,
-  Database, Trash2, Globe, MessageSquare, Smartphone,
+  Database, Trash2, Globe, MessageSquare, Smartphone, Copy, Check,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -72,6 +72,19 @@ export default function BackstagePage() {
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoMsg, setDemoMsg] = useState("");
 
+  // WhatsApp / SendApp state
+  const [waEnabled, setWaEnabled] = useState(false);
+  const [waHasToken, setWaHasToken] = useState(false);
+  const [waTokenInput, setWaTokenInput] = useState("");
+  const [waInstanceId, setWaInstanceId] = useState("");
+  const [waWebhookUrl, setWaWebhookUrl] = useState("");
+  const [waAccounts, setWaAccounts] = useState<{ instance_id: string; status: string; name?: string }[]>([]);
+  const [waAccountsLoading, setWaAccountsLoading] = useState(false);
+  const [waAccountsError, setWaAccountsError] = useState("");
+  const [waSaving, setWaSaving] = useState(false);
+  const [waMsg, setWaMsg] = useState("");
+  const [waCopied, setWaCopied] = useState(false);
+
   const didFetch = useRef(false);
 
   // Auto-scroll log to bottom on new lines
@@ -95,13 +108,18 @@ export default function BackstagePage() {
       fetch("/api/backstage/me").then(r => r.json()),
       fetch("/api/backstage/system").then(r => r.json()),
       fetch("/api/backstage/demo").then(r => r.json()),
-    ]).then(([mods, me, sys, demo]) => {
+      fetch("/api/backstage/whatsapp").then(r => r.json()),
+    ]).then(([mods, me, sys, demo, wa]) => {
       setModules(mods);
       setSaEmail(me.email ?? "");
       setTotpEnabled(me.totpEnabled ?? false);
       setSysInfo(sys);
       setDemoSeeded(demo.seeded ?? false);
       setDemoSeededAt(demo.seededAt ?? null);
+      setWaEnabled(wa.enabled ?? false);
+      setWaHasToken(wa.hasToken ?? false);
+      setWaInstanceId(wa.instanceId ?? "");
+      setWaWebhookUrl(wa.webhookUrl ?? "");
     }).catch(() => router.push("/backstage/login"));
   }, [router]);
 
@@ -225,6 +243,59 @@ export default function BackstagePage() {
     } finally {
       setDemoLoading(false);
     }
+  }
+
+  // WhatsApp handlers
+  async function loadWaAccounts(tokenOverride?: string) {
+    setWaAccountsLoading(true);
+    setWaAccountsError("");
+    try {
+      const url = tokenOverride
+        ? `/api/backstage/whatsapp/accounts?token=${encodeURIComponent(tokenOverride)}`
+        : "/api/backstage/whatsapp/accounts";
+      const res = await fetch(url);
+      const data = await res.json() as { error?: string } | { instance_id: string; status: string; name?: string }[];
+      if (!res.ok || "error" in data) throw new Error((data as { error?: string }).error ?? "Errore");
+      setWaAccounts(data as { instance_id: string; status: string; name?: string }[]);
+    } catch (e) {
+      setWaAccountsError((e as Error).message);
+    } finally {
+      setWaAccountsLoading(false);
+    }
+  }
+
+  async function saveWaSettings() {
+    setWaSaving(true);
+    setWaMsg("");
+    try {
+      const body: Record<string, unknown> = {
+        enabled: waEnabled,
+        instanceId: waInstanceId,
+      };
+      if (waTokenInput.trim()) body.token = waTokenInput.trim();
+
+      const res = await fetch("/api/backstage/whatsapp", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Errore salvataggio");
+      setWaMsg("Impostazioni salvate");
+      setWaTokenInput("");
+      setWaHasToken(true);
+      // Reload accounts if we just saved a new token
+      if (body.token) await loadWaAccounts(body.token as string);
+    } catch (e) {
+      setWaMsg((e as Error).message);
+    } finally {
+      setWaSaving(false);
+    }
+  }
+
+  async function copyWebhookUrl() {
+    await navigator.clipboard.writeText(waWebhookUrl);
+    setWaCopied(true);
+    setTimeout(() => setWaCopied(false), 2000);
   }
 
   // TOTP handlers
@@ -559,6 +630,145 @@ export default function BackstagePage() {
               <p className="text-xs text-slate-300 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700 font-mono">
                 {demoMsg}
               </p>
+            )}
+          </div>
+        </section>
+
+        {/* WhatsApp / SendApp */}
+        <section>
+          <h2 className="text-lg font-bold mb-4">WhatsApp / SendApp</h2>
+          <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-5 space-y-5">
+
+            {/* Module toggle */}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold">Modulo WhatsApp</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Attiva per abilitare le risposte automatiche ai messaggi WhatsApp in arrivo.
+                </p>
+              </div>
+              <button
+                onClick={() => setWaEnabled(v => !v)}
+                className="shrink-0 mt-0.5"
+                aria-label={waEnabled ? "Disattiva modulo" : "Attiva modulo"}
+              >
+                {waEnabled
+                  ? <ToggleRight className="h-6 w-6 text-indigo-400" />
+                  : <ToggleLeft className="h-6 w-6 text-slate-600" />}
+              </button>
+            </div>
+
+            {/* Token input */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                Token API SendApp
+              </label>
+              {waHasToken && !waTokenInput && (
+                <p className="text-xs text-slate-500">Token configurato. Inserisci un nuovo valore per sostituirlo.</p>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder={waHasToken ? "Nuovo token (lascia vuoto per non cambiarlo)" : "Incolla il token da SendApp"}
+                  value={waTokenInput}
+                  onChange={e => setWaTokenInput(e.target.value)}
+                  className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono"
+                />
+                {waTokenInput.trim() && (
+                  <button
+                    onClick={() => loadWaAccounts(waTokenInput.trim())}
+                    disabled={waAccountsLoading}
+                    className="shrink-0 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:border-slate-500 transition-colors disabled:opacity-50"
+                  >
+                    {waAccountsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    Carica account
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Account selector */}
+            {(waAccounts.length > 0 || waHasToken) && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                    Account WhatsApp
+                  </label>
+                  {waHasToken && waAccounts.length === 0 && (
+                    <button
+                      onClick={() => loadWaAccounts()}
+                      disabled={waAccountsLoading}
+                      className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50"
+                    >
+                      {waAccountsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                      Carica lista
+                    </button>
+                  )}
+                </div>
+                {waAccounts.length > 0 ? (
+                  <select
+                    value={waInstanceId}
+                    onChange={e => setWaInstanceId(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="">— Seleziona account —</option>
+                    {waAccounts.map(a => (
+                      <option key={a.instance_id} value={a.instance_id}>
+                        {a.name ?? a.instance_id} · {a.status}
+                      </option>
+                    ))}
+                  </select>
+                ) : waAccountsLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Caricamento account…
+                  </div>
+                ) : waInstanceId ? (
+                  <p className="text-xs text-slate-400 font-mono">Instance ID: {waInstanceId}</p>
+                ) : null}
+                {waAccountsError && (
+                  <p className="text-xs text-red-400">{waAccountsError}</p>
+                )}
+              </div>
+            )}
+
+            {/* Save button */}
+            <button
+              onClick={saveWaSettings}
+              disabled={waSaving}
+              className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg text-white disabled:opacity-50 transition-opacity"
+              style={{ background: "linear-gradient(135deg,#4f46e5,#7c3aed)" }}
+            >
+              {waSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+              Salva impostazioni WhatsApp
+            </button>
+
+            {waMsg && (
+              <p className="text-xs text-slate-300 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700 font-mono">
+                {waMsg}
+              </p>
+            )}
+
+            {/* Webhook URL */}
+            {waWebhookUrl && (
+              <div className="space-y-2 border-t border-slate-700/50 pt-4">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                  URL Webhook (da configurare in SendApp)
+                </p>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Incolla questo URL nella dashboard SendApp → impostazioni account → campo Webhook URL / Notification URL.
+                  Ogni messaggio WhatsApp in arrivo verrà inoltrato qui.
+                </p>
+                <div className="flex items-center gap-2 bg-slate-800/70 rounded-lg border border-slate-700 px-3 py-2">
+                  <code className="text-xs font-mono text-indigo-300 flex-1 break-all">{waWebhookUrl}</code>
+                  <button
+                    onClick={copyWebhookUrl}
+                    className="shrink-0 text-slate-400 hover:text-slate-200 transition-colors"
+                    title="Copia URL"
+                  >
+                    {waCopied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </section>

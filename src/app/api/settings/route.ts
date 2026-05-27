@@ -13,13 +13,20 @@ const DEFAULTS: Record<string, string> = {
   "restaurant.logo": "",
   "slot.driftThreshold": "3",
   "slot.driftMinutes": "15",
+  "whatsapp.service.enabled": "false",
+  "whatsapp.message": "",
+  "whatsapp.booking.url": "",
 };
+
+// Read-only keys exposed in GET but not writable via PATCH
+const READONLY_KEYS = ["whatsapp.enabled"];
 
 export async function GET() {
   const session = await getAuth();
   if (!session) return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
 
-  const rows = await prisma.setting.findMany();
+  const allKeys = [...Object.keys(DEFAULTS), ...READONLY_KEYS];
+  const rows = await prisma.setting.findMany({ where: { key: { in: allKeys } } });
   const settings: Record<string, string> = { ...DEFAULTS };
   for (const row of rows) {
     settings[row.key] = row.value;

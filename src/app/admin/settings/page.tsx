@@ -22,6 +22,7 @@ import {
   ShieldOff,
   Store,
   Timer,
+  MessageSquare,
 } from "lucide-react";
 
 interface SettingsData {
@@ -35,6 +36,10 @@ interface SettingsData {
   "restaurant.logo": string;
   "slot.driftThreshold": string;
   "slot.driftMinutes": string;
+  "whatsapp.enabled": string;
+  "whatsapp.service.enabled": string;
+  "whatsapp.message": string;
+  "whatsapp.booking.url": string;
 }
 
 export default function SettingsPage() {
@@ -50,6 +55,12 @@ export default function SettingsPage() {
   const copertoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nameSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // WhatsApp state
+  const [waMessageInput, setWaMessageInput] = useState("");
+  const [waBookingUrlInput, setWaBookingUrlInput] = useState("");
+  const [waSaving, setWaSaving] = useState(false);
+  const waSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // TOTP state
   const [totpEnabled, setTotpEnabled] = useState(false);
@@ -69,6 +80,8 @@ export default function SettingsPage() {
         setRestaurantPhoneInput(data["restaurant.phone"] ?? "");
         setDriftThreshold(data["slot.driftThreshold"] ?? "3");
         setDriftMinutes(data["slot.driftMinutes"] ?? "15");
+        setWaMessageInput(data["whatsapp.message"] || `🍽️ Prenota il tuo tavolo in pochi click!\n\n👇 Clicca qui per prenotare:\n{link}\n\nIl tuo numero è già inserito! ✅\n\nA presto! 😊`);
+        setWaBookingUrlInput(data["whatsapp.booking.url"] || `${window.location.origin}/prenota`);
       });
 
     fetch("/api/auth/totp/status")
@@ -185,6 +198,51 @@ export default function SettingsPage() {
       toast({ title: "Errore salvataggio", variant: "destructive" });
     } finally {
       setSaving(null);
+    }
+  }
+
+  async function toggleWaService() {
+    if (!settings) return;
+    const newValue = settings["whatsapp.service.enabled"] === "true" ? "false" : "true";
+    setSettings({ ...settings, "whatsapp.service.enabled": newValue });
+    try {
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ "whatsapp.service.enabled": newValue }),
+      });
+      toast({ title: newValue === "true" ? "Servizio WhatsApp attivato" : "Servizio WhatsApp disattivato" });
+    } catch {
+      setSettings((s) => s ? { ...s, "whatsapp.service.enabled": settings["whatsapp.service.enabled"] } : s);
+      toast({ title: "Errore salvataggio", variant: "destructive" });
+    }
+  }
+
+  function onWaMessageChange(value: string) {
+    setWaMessageInput(value);
+    if (waSaveTimer.current) clearTimeout(waSaveTimer.current);
+    waSaveTimer.current = setTimeout(() => saveWaSettings(value, waBookingUrlInput), 800);
+  }
+
+  function onWaBookingUrlChange(value: string) {
+    setWaBookingUrlInput(value);
+    if (waSaveTimer.current) clearTimeout(waSaveTimer.current);
+    waSaveTimer.current = setTimeout(() => saveWaSettings(waMessageInput, value), 800);
+  }
+
+  async function saveWaSettings(message: string, bookingUrl: string) {
+    setWaSaving(true);
+    try {
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ "whatsapp.message": message, "whatsapp.booking.url": bookingUrl }),
+      });
+      setSettings((s) => s ? { ...s, "whatsapp.message": message, "whatsapp.booking.url": bookingUrl } : s);
+    } catch {
+      toast({ title: "Errore salvataggio", variant: "destructive" });
+    } finally {
+      setWaSaving(false);
     }
   }
 
@@ -847,6 +905,79 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* WhatsApp */}
+      {settings?.["whatsapp.enabled"] === "true" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MessageSquare className="h-4 w-4" />
+              Prenotazioni via WhatsApp
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Service on/off */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Risposte automatiche</Label>
+                <p className="text-xs text-muted-foreground">
+                  Quando attivo, ogni messaggio WhatsApp ricevuto ottiene una risposta automatica con il link di prenotazione.
+                </p>
+              </div>
+              <Switch
+                checked={settings["whatsapp.service.enabled"] === "true"}
+                onCheckedChange={toggleWaService}
+              />
+            </div>
+
+            {/* Message template */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Messaggio da inviare</Label>
+              <p className="text-xs text-muted-foreground">
+                Usa <code className="bg-muted px-1 rounded text-xs">{"{link}"}</code> per inserire il link di prenotazione personalizzato. Il logo del ristorante viene allegato automaticamente.
+              </p>
+              <textarea
+                value={waMessageInput}
+                onChange={e => onWaMessageChange(e.target.value)}
+                rows={6}
+                className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                placeholder="es. 🍽️ Prenota qui: {link}"
+              />
+              {waSaving && <p className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…</p>}
+            </div>
+
+            {/* Booking URL */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">URL pagina di prenotazione</Label>
+              <Input
+                value={waBookingUrlInput}
+                onChange={e => onWaBookingUrlChange(e.target.value)}
+                placeholder="https://tuodominio.it/prenota"
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">Il numero del cliente viene aggiunto automaticamente come parametro <code className="bg-muted px-1 rounded">?phone=…</code></p>
+            </div>
+
+            {/* Preview */}
+            {waMessageInput && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Anteprima messaggio</Label>
+                <div className="rounded-xl bg-[#dcf8c6] text-gray-900 p-4 text-sm leading-relaxed max-w-xs shadow space-y-2">
+                  {settings["restaurant.logo"] && (
+                    <div className="rounded-lg overflow-hidden bg-white/50 flex items-center justify-center h-16 w-full">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={settings["restaurant.logo"]} alt="Logo" className="h-full w-auto object-contain" />
+                    </div>
+                  )}
+                  <p className="whitespace-pre-wrap break-words">
+                    {waMessageInput.replace("{link}", `${waBookingUrlInput}?phone=3XXXXXXXXXX`)}
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
