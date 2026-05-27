@@ -810,7 +810,7 @@ export default function BackstagePage() {
                 Autoresponder SendApp
               </p>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Sincronizza le parole chiave e il messaggio configurati nell&apos;admin con il chatbot di SendApp. Da eseguire ogni volta che si aggiornano le impostazioni.
+                Invia il messaggio, le parole chiave e l&apos;URL qui configurati al chatbot di SendApp. Da eseguire dopo ogni modifica.
               </p>
               <button
                 onClick={syncWaAutoresponder}

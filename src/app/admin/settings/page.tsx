@@ -925,7 +925,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <Label className="text-sm font-medium">Parole chiave autoresponder</Label>
               <p className="text-xs text-muted-foreground">
-                Quando un cliente invia un messaggio contenente una di queste parole, riceve automaticamente il link di prenotazione. Separa con virgola. Il messaggio si configura nel backstage.
+                Quando un cliente invia un messaggio contenente una di queste parole, riceve automaticamente il link di prenotazione. Separa con virgola.
               </p>
               <Input
                 value={waKeywordsInput}
