@@ -192,6 +192,17 @@ model SuperAdmin {
   createdAt   DateTime @default(now())
 }
 
+model MissedCall {
+  id            String   @id @default(cuid())
+  phone         String
+  isMobile      Boolean
+  whatsappSent  Boolean  @default(false)
+  whatsappError String?
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model OrderItem {
   id         String   @id @default(cuid())
   orderId    String

@@ -9,6 +9,7 @@ export const MODULE_KEYS = [
   "module.users",
   "module.chatbot",
   "module.webapp",
+  "module.asterisk",
 ] as const;
 
 export type ModuleKey = (typeof MODULE_KEYS)[number];

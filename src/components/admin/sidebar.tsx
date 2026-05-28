@@ -19,6 +19,7 @@ import {
   BarChart2,
   Settings,
   AlertTriangle,
+  PhoneMissed,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ const navItems = [
   { href: "/admin/settings/allergens",  label: "Allergeni",     icon: AlertTriangle,  roles: ["ADMIN"] },
   { href: "/admin/menu",            label: "Menu",             icon: UtensilsCrossed, roles: ["ADMIN"] },
   { href: "/admin/users",           label: "Utenti",           icon: Users,           roles: ["ADMIN"] },
+  { href: "/admin/asterisk",        label: "Chiamate perse",   icon: PhoneMissed,     roles: ["ADMIN", "STAFF"] },
 ];
 
 function dispatchNavStart() {

@@ -10,6 +10,7 @@ import {
   GitBranch, RefreshCw, CheckCircle2, AlertCircle, Terminal,
   Database, Trash2, Globe, MessageSquare, Smartphone,
   UserPlus, Pencil, X, KeyRound, ClipboardList, PhoneOutgoing, ShieldAlert,
+  Phone, PhoneMissed,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -113,6 +114,34 @@ export default function BackstagePage() {
   const [waSyncLoading, setWaSyncLoading] = useState(false);
   const [waSyncMsg, setWaSyncMsg] = useState("");
 
+  // Asterisk / SIP state
+  const [astEnabled, setAstEnabled] = useState(false);
+  const [astAmiHost, setAstAmiHost] = useState("127.0.0.1");
+  const [astAmiPort, setAstAmiPort] = useState("5038");
+  const [astAmiUser, setAstAmiUser] = useState("");
+  const [astAmiSecretInput, setAstAmiSecretInput] = useState("");
+  const [astHasAmiSecret, setAstHasAmiSecret] = useState(false);
+  const [astTrunkName, setAstTrunkName] = useState("messagenet");
+  const [astTrunkUsername, setAstTrunkUsername] = useState("5406386912");
+  const [astTrunkSecretInput, setAstTrunkSecretInput] = useState("");
+  const [astHasTrunkSecret, setAstHasTrunkSecret] = useState(false);
+  const [astTrunkFromuser, setAstTrunkFromuser] = useState("5406386912");
+  const [astTrunkFromdomain, setAstTrunkFromdomain] = useState("sip.messagenet.it");
+  const [astTrunkHost, setAstTrunkHost] = useState("sip.messagenet.it");
+  const [astTrunkPort, setAstTrunkPort] = useState("5061");
+  const [astTrunkContext, setAstTrunkContext] = useState("from-trunk");
+  const [astSaving, setAstSaving] = useState(false);
+  const [astMsg, setAstMsg] = useState("");
+  const [astStatus, setAstStatus] = useState<{
+    registered: boolean;
+    peerState: string | null;
+    lastCheck: string | null;
+    workerActive: boolean;
+  } | null>(null);
+  const [astStatusLoading, setAstStatusLoading] = useState(false);
+  const [astReloadLoading, setAstReloadLoading] = useState(false);
+  const [astReloadMsg, setAstReloadMsg] = useState("");
+
   // WhatsApp log state
   const [waLog, setWaLog] = useState<WaLogEntry[]>([]);
   const [waLastSync, setWaLastSync] = useState<WaLastSync | null>(null);
@@ -153,7 +182,9 @@ export default function BackstagePage() {
       fetch("/api/backstage/demo").then(r => r.json()),
       fetch("/api/backstage/whatsapp").then(r => r.json()),
       fetch("/api/backstage/users").then(r => r.json()),
-    ]).then(([mods, me, sys, demo, wa, usrs]) => {
+      fetch("/api/backstage/asterisk").then(r => r.json()),
+      fetch("/api/backstage/asterisk/status").then(r => r.json()),
+    ]).then(([mods, me, sys, demo, wa, usrs, ast, astSt]) => {
       setModules(mods);
       setSaEmail(me.email ?? "");
       setTotpEnabled(me.totpEnabled ?? false);
@@ -167,6 +198,21 @@ export default function BackstagePage() {
       setWaBookingUrl(wa.bookingUrl ?? "");
       setWaKeywords(wa.keywords ?? "");
       if (Array.isArray(usrs)) setUsers(usrs);
+      // Asterisk
+      setAstEnabled(ast.enabled ?? false);
+      setAstAmiHost(ast.amiHost ?? "127.0.0.1");
+      setAstAmiPort(ast.amiPort ?? "5038");
+      setAstAmiUser(ast.amiUser ?? "");
+      setAstHasAmiSecret(ast.hasAmiSecret ?? false);
+      setAstTrunkName(ast.trunkName ?? "messagenet");
+      setAstTrunkUsername(ast.trunkUsername ?? "5406386912");
+      setAstHasTrunkSecret(ast.hasTrunkSecret ?? false);
+      setAstTrunkFromuser(ast.trunkFromuser ?? "5406386912");
+      setAstTrunkFromdomain(ast.trunkFromdomain ?? "sip.messagenet.it");
+      setAstTrunkHost(ast.trunkHost ?? "sip.messagenet.it");
+      setAstTrunkPort(ast.trunkPort ?? "5061");
+      setAstTrunkContext(ast.trunkContext ?? "from-trunk");
+      if (astSt && !astSt.error) setAstStatus(astSt);
     }).catch(() => router.push("/backstage/login"));
 
     void loadWaLog();
@@ -394,6 +440,114 @@ export default function BackstagePage() {
       setWaLogLoading(false);
     }
   }
+
+  // Asterisk handlers
+  async function toggleAstEnabled() {
+    const next = !astEnabled;
+    setAstEnabled(next);
+    setAstSaving(true);
+    setAstMsg("");
+    try {
+      const res = await fetch("/api/backstage/asterisk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      if (!res.ok) throw new Error("Errore salvataggio");
+      setAstMsg(next ? "Modulo Asterisk attivato" : "Modulo Asterisk disattivato");
+    } catch (e) {
+      setAstEnabled(!next);
+      setAstMsg((e as Error).message);
+    } finally {
+      setAstSaving(false);
+    }
+  }
+
+  async function saveAstSettings() {
+    setAstSaving(true);
+    setAstMsg("");
+    try {
+      const body: Record<string, unknown> = {
+        enabled: astEnabled,
+        amiHost: astAmiHost,
+        amiPort: astAmiPort,
+        amiUser: astAmiUser,
+        trunkName: astTrunkName,
+        trunkUsername: astTrunkUsername,
+        trunkFromuser: astTrunkFromuser,
+        trunkFromdomain: astTrunkFromdomain,
+        trunkHost: astTrunkHost,
+        trunkPort: astTrunkPort,
+        trunkContext: astTrunkContext,
+      };
+      if (astAmiSecretInput.trim()) body.amiSecret = astAmiSecretInput.trim();
+      if (astTrunkSecretInput.trim()) body.trunkSecret = astTrunkSecretInput.trim();
+      const res = await fetch("/api/backstage/asterisk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Errore salvataggio");
+      setAstMsg("Impostazioni salvate");
+      setAstAmiSecretInput("");
+      setAstTrunkSecretInput("");
+      if (astAmiSecretInput.trim()) setAstHasAmiSecret(true);
+      if (astTrunkSecretInput.trim()) setAstHasTrunkSecret(true);
+    } catch (e) {
+      setAstMsg((e as Error).message);
+    } finally {
+      setAstSaving(false);
+    }
+  }
+
+  async function loadAstStatus() {
+    setAstStatusLoading(true);
+    try {
+      const res = await fetch("/api/backstage/asterisk/status");
+      const data = await res.json();
+      if (res.ok) setAstStatus(data);
+    } catch { /* non-critical */ } finally {
+      setAstStatusLoading(false);
+    }
+  }
+
+  async function reloadSip() {
+    setAstReloadLoading(true);
+    setAstReloadMsg("");
+    try {
+      const res = await fetch("/api/backstage/asterisk/reload", { method: "POST" });
+      const data = await res.json() as { ok?: boolean; output?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Errore");
+      setAstReloadMsg(data.output ? `OK: ${data.output.slice(0, 120)}` : "Ricaricato con successo");
+    } catch (e) {
+      setAstReloadMsg((e as Error).message);
+    } finally {
+      setAstReloadLoading(false);
+    }
+  }
+
+  const sipConfSnippet = `[${astTrunkName}]
+type=peer
+host=${astTrunkHost}
+port=${astTrunkPort}
+username=${astTrunkUsername}
+fromuser=${astTrunkFromuser}
+fromdomain=${astTrunkFromdomain}
+secret=${astHasTrunkSecret ? "••••" : "INSERISCI_SECRET"}
+context=${astTrunkContext}
+insecure=port,invite
+nat=yes
+qualify=yes
+dtmfmode=rfc2833
+disallow=all
+allow=ulaw`;
+
+  const extConfSnippet = `[${astTrunkContext}]
+exten => _X.,1,NoOp(Chiamata da \${CALLERID(num)})
+ same => n,Wait(1)
+ same => n,Hangup()`;
+
+  const registerString = `register => ${astTrunkUsername}:${astHasTrunkSecret ? "••••" : "SECRET"}@${astTrunkHost}:${astTrunkPort}/${astTrunkUsername}`;
 
   // TOTP handlers
   async function startTotpSetup() {
@@ -1344,6 +1498,211 @@ export default function BackstagePage() {
                 </div>
               )}
             </div>
+
+          </div>
+        </section>
+
+        {/* Asterisk / SIP */}
+        <section>
+          <h2 className="text-lg font-bold mb-4">Asterisk / Messagenet SIP</h2>
+          <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-5 space-y-5">
+
+            {/* Toggle modulo */}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold">Modulo Asterisk</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Attiva per abilitare il worker AMI che intercetta le chiamate entranti e invia messaggi WhatsApp.
+                </p>
+              </div>
+              <button
+                onClick={toggleAstEnabled}
+                disabled={astSaving}
+                className="shrink-0 mt-0.5"
+                aria-label={astEnabled ? "Disattiva modulo" : "Attiva modulo"}
+              >
+                {astSaving
+                  ? <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
+                  : astEnabled
+                  ? <ToggleRight className="h-6 w-6 text-indigo-400" />
+                  : <ToggleLeft className="h-6 w-6 text-slate-600" />}
+              </button>
+            </div>
+
+            {/* Stato registrazione */}
+            <div className="space-y-2 border-t border-slate-700/50 pt-4">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Stato trunk SIP</p>
+                <button
+                  onClick={loadAstStatus}
+                  disabled={astStatusLoading}
+                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50"
+                >
+                  {astStatusLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                  Aggiorna
+                </button>
+              </div>
+              {astStatus ? (
+                <div className="flex flex-wrap gap-2">
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                    astStatus.registered ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-800 text-slate-500"
+                  }`}>
+                    <Phone className="h-3 w-3" />
+                    {astStatus.registered ? "Registrato" : "Non registrato"}
+                  </span>
+                  {astStatus.peerState && (
+                    <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-400">
+                      {astStatus.peerState}
+                    </span>
+                  )}
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                    astStatus.workerActive ? "bg-indigo-500/15 text-indigo-300" : "bg-red-500/10 text-red-400"
+                  }`}>
+                    <PhoneMissed className="h-3 w-3" />
+                    Worker {astStatus.workerActive ? "attivo" : "inattivo"}
+                  </span>
+                  {astStatus.lastCheck && (
+                    <span className="text-xs text-slate-600">
+                      Ultimo check: {new Date(astStatus.lastCheck).toLocaleString("it-IT")}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-600 italic">Stato non disponibile — avvia il worker.</p>
+              )}
+            </div>
+
+            {/* Parametri AMI */}
+            <div className="space-y-3 border-t border-slate-700/50 pt-4">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Parametri AMI (Asterisk Manager Interface)</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="space-y-1 col-span-2">
+                  <label className="text-xs text-slate-400">Host AMI</label>
+                  <Input value={astAmiHost} onChange={e => setAstAmiHost(e.target.value)}
+                    className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono h-8"
+                    placeholder="127.0.0.1" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400">Porta</label>
+                  <Input value={astAmiPort} onChange={e => setAstAmiPort(e.target.value)}
+                    className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono h-8"
+                    placeholder="5038" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400">Utente AMI</label>
+                  <Input value={astAmiUser} onChange={e => setAstAmiUser(e.target.value)}
+                    className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono h-8"
+                    placeholder="admin" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400">Password AMI</label>
+                {astHasAmiSecret && !astAmiSecretInput && (
+                  <p className="text-xs text-slate-500">Password configurata. Inserisci un nuovo valore per sostituirla.</p>
+                )}
+                <Input
+                  type="password"
+                  value={astAmiSecretInput}
+                  onChange={e => setAstAmiSecretInput(e.target.value)}
+                  placeholder={astHasAmiSecret ? "Nuova password (lascia vuoto per non cambiare)" : "Password manager.conf"}
+                  className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono h-8"
+                />
+              </div>
+            </div>
+
+            {/* Parametri trunk SIP */}
+            <div className="space-y-3 border-t border-slate-700/50 pt-4">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Trunk SIP Messagenet</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400">Nome peer</label>
+                  <Input value={astTrunkName} onChange={e => setAstTrunkName(e.target.value)}
+                    className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono h-8" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400">Username</label>
+                  <Input value={astTrunkUsername} onChange={e => setAstTrunkUsername(e.target.value)}
+                    className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono h-8" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400">Fromuser</label>
+                  <Input value={astTrunkFromuser} onChange={e => setAstTrunkFromuser(e.target.value)}
+                    className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono h-8" />
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <label className="text-xs text-slate-400">Fromdomain / Host</label>
+                  <Input value={astTrunkFromdomain} onChange={e => setAstTrunkFromdomain(e.target.value)}
+                    className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono h-8" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400">Port SIP</label>
+                  <Input value={astTrunkPort} onChange={e => setAstTrunkPort(e.target.value)}
+                    className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono h-8" />
+                </div>
+                <div className="space-y-1 col-span-2 sm:col-span-2">
+                  <label className="text-xs text-slate-400">Context dialplan</label>
+                  <Input value={astTrunkContext} onChange={e => setAstTrunkContext(e.target.value)}
+                    className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono h-8" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400">Secret trunk SIP</label>
+                {astHasTrunkSecret && !astTrunkSecretInput && (
+                  <p className="text-xs text-slate-500">Secret configurato. Inserisci un nuovo valore per sostituirlo.</p>
+                )}
+                <Input
+                  type="password"
+                  value={astTrunkSecretInput}
+                  onChange={e => setAstTrunkSecretInput(e.target.value)}
+                  placeholder={astHasTrunkSecret ? "Nuovo secret (lascia vuoto per non cambiare)" : "ikxYoLNg"}
+                  className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono h-8"
+                />
+              </div>
+            </div>
+
+            {/* Snippet sip.conf */}
+            <div className="space-y-2 border-t border-slate-700/50 pt-4">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Snippet sip.conf</p>
+              <p className="text-xs text-slate-500">Incolla in <code className="bg-slate-800 px-1 rounded">/etc/asterisk/sip.conf</code></p>
+              <pre className="text-xs font-mono bg-black/60 rounded-lg border border-slate-800 p-3 overflow-x-auto text-slate-300 whitespace-pre leading-relaxed">
+                {sipConfSnippet}
+              </pre>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mt-3">Register string (sezione [general])</p>
+              <pre className="text-xs font-mono bg-black/60 rounded-lg border border-slate-800 p-3 overflow-x-auto text-slate-300 whitespace-pre">
+                {registerString}
+              </pre>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mt-3">Snippet extensions.conf</p>
+              <pre className="text-xs font-mono bg-black/60 rounded-lg border border-slate-800 p-3 overflow-x-auto text-slate-300 whitespace-pre">
+                {extConfSnippet}
+              </pre>
+            </div>
+
+            {/* Save + reload */}
+            <div className="flex flex-wrap gap-3 border-t border-slate-700/50 pt-4">
+              <button
+                onClick={saveAstSettings}
+                disabled={astSaving}
+                className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg text-white disabled:opacity-50 transition-opacity"
+                style={{ background: "linear-gradient(135deg,#4f46e5,#7c3aed)" }}
+              >
+                {astSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+                Salva configurazione
+              </button>
+              <button
+                onClick={reloadSip}
+                disabled={astReloadLoading || !astHasAmiSecret}
+                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-amber-700 text-amber-400 hover:bg-amber-600/10 transition-colors disabled:opacity-50"
+              >
+                {astReloadLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Ricarica sip.conf in Asterisk
+              </button>
+            </div>
+
+            {(astMsg || astReloadMsg) && (
+              <p className="text-xs text-slate-300 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700 font-mono">
+                {astMsg || astReloadMsg}
+              </p>
+            )}
 
           </div>
         </section>

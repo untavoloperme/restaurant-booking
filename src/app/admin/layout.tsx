@@ -20,6 +20,7 @@ const PATH_TO_MODULE: Record<string, string> = {
   "/admin/menu":          "module.menu",
   "/admin/settings":      "module.settings",
   "/admin/users":         "module.users",
+  "/admin/asterisk":      "module.asterisk",
 };
 
 async function fetchModules(): Promise<Record<string, boolean>> {
