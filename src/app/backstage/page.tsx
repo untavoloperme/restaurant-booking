@@ -10,7 +10,7 @@ import {
   GitBranch, RefreshCw, CheckCircle2, AlertCircle, Terminal,
   Database, Trash2, Globe, MessageSquare, Smartphone,
   UserPlus, Pencil, X, KeyRound, ClipboardList, PhoneOutgoing, ShieldAlert,
-  Phone, PhoneMissed,
+  Phone, PhoneMissed, RotateCcw, Wifi, WifiOff,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -155,6 +155,17 @@ export default function BackstagePage() {
   const [waLastSync, setWaLastSync] = useState<WaLastSync | null>(null);
   const [waLogLoading, setWaLogLoading] = useState(false);
   const [waRawExpanded, setWaRawExpanded] = useState(false);
+  const [clearCallsLoading, setClearCallsLoading] = useState(false);
+  const [clearCallsMsg, setClearCallsMsg] = useState("");
+
+  // Worker dedup reset
+  const [workerRestartLoading, setWorkerRestartLoading] = useState(false);
+  const [workerRestartMsg, setWorkerRestartMsg] = useState("");
+
+  // SSH state
+  const [sshActive, setSshActive] = useState(false);
+  const [sshLoading, setSshLoading] = useState(false);
+  const [sshMsg, setSshMsg] = useState("");
 
   // Users management state
   const [users, setUsers] = useState<BsUser[]>([]);
@@ -192,7 +203,8 @@ export default function BackstagePage() {
       fetch("/api/backstage/users").then(r => r.json()),
       fetch("/api/backstage/asterisk").then(r => r.json()),
       fetch("/api/backstage/asterisk/status").then(r => r.json()),
-    ]).then(([mods, me, sys, demo, wa, usrs, ast, astSt]) => {
+      fetch("/api/backstage/ssh").then(r => r.json()),
+    ]).then(([mods, me, sys, demo, wa, usrs, ast, astSt, ssh]) => {
       setModules(mods);
       setSaEmail(me.email ?? "");
       setTotpEnabled(me.totpEnabled ?? false);
@@ -222,6 +234,7 @@ export default function BackstagePage() {
       setAstTrunkContext(ast.trunkContext ?? "from-trunk");
       setAstTrunkRegisterPhone(ast.trunkRegisterPhone ?? "");
       if (astSt && !astSt.error) setAstStatus(astSt);
+      if (ssh && !ssh.error) setSshActive(ssh.active ?? false);
     }).catch(() => router.push("/backstage/login"));
 
     void loadWaLog();
@@ -433,6 +446,61 @@ export default function BackstagePage() {
       void loadWaLog();
     } finally {
       setWaSyncLoading(false);
+    }
+  }
+
+  async function restartWorker() {
+    if (!confirm("Riavviare il worker Asterisk? Il registro dedup in-memory verrà azzerato.")) return;
+    setWorkerRestartLoading(true);
+    setWorkerRestartMsg("");
+    try {
+      const res = await fetch("/api/backstage/asterisk/worker-restart", { method: "POST" });
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Errore");
+      setWorkerRestartMsg("Worker riavviato — registro dedup azzerato");
+      void loadAstStatus();
+    } catch (e) {
+      setWorkerRestartMsg((e as Error).message);
+    } finally {
+      setWorkerRestartLoading(false);
+    }
+  }
+
+  async function toggleSsh() {
+    const action = sshActive ? "stop" : "start";
+    if (action === "stop" && !confirm("Disattivare SSH? Se sei connesso via SSH perderai la sessione.")) return;
+    setSshLoading(true);
+    setSshMsg("");
+    try {
+      const res = await fetch("/api/backstage/ssh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json() as { ok?: boolean; active?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Errore");
+      setSshActive(data.active ?? action === "start");
+      setSshMsg(action === "start" ? "SSH attivato" : "SSH disattivato");
+    } catch (e) {
+      setSshMsg((e as Error).message);
+    } finally {
+      setSshLoading(false);
+    }
+  }
+
+  async function clearMissedCalls() {
+    if (!confirm("Eliminare tutte le registrazioni delle chiamate? L'operazione è irreversibile.")) return;
+    setClearCallsLoading(true);
+    setClearCallsMsg("");
+    try {
+      const res = await fetch("/api/missed-calls", { method: "DELETE" });
+      const data = await res.json() as { ok?: boolean; deleted?: number; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Errore");
+      setClearCallsMsg(`Eliminati ${data.deleted} record`);
+    } catch (e) {
+      setClearCallsMsg((e as Error).message);
+    } finally {
+      setClearCallsLoading(false);
     }
   }
 
@@ -1518,6 +1586,29 @@ exten => _X.,1,NoOp(Chiamata da \${CALLERID(num)})
               )}
             </div>
 
+            {/* Registro chiamate — svuota */}
+            <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-2">
+                  <PhoneMissed className="h-3.5 w-3.5" /> Registro chiamate
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Elimina tutte le registrazioni delle chiamate perse (tabella MissedCall).
+                </p>
+                {clearCallsMsg && (
+                  <p className="text-xs text-slate-300 font-mono mt-1">{clearCallsMsg}</p>
+                )}
+              </div>
+              <button
+                onClick={clearMissedCalls}
+                disabled={clearCallsLoading}
+                className="shrink-0 flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-red-700 text-red-400 hover:bg-red-600/10 transition-colors disabled:opacity-50"
+              >
+                {clearCallsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Svuota registro
+              </button>
+            </div>
+
             {/* Messaggi inviati */}
             <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-700/60 flex items-center justify-between">
@@ -1820,6 +1911,15 @@ exten => _X.,1,NoOp(Chiamata da \${CALLERID(num)})
                 {astBuildRunning ? "Build in corso..." : "Build & riavvia worker"}
               </button>
               <button
+                onClick={restartWorker}
+                disabled={workerRestartLoading}
+                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-amber-700 text-amber-400 hover:bg-amber-600/10 transition-colors disabled:opacity-50"
+                title="Riavvia il worker PM2 azzerando il registro dedup in-memory"
+              >
+                {workerRestartLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                Reset dedup
+              </button>
+              <button
                 onClick={loadAsteriskLogs}
                 disabled={astLogsLoading}
                 className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:bg-slate-700/30 transition-colors disabled:opacity-50"
@@ -1828,6 +1928,11 @@ exten => _X.,1,NoOp(Chiamata da \${CALLERID(num)})
                 Log worker
               </button>
             </div>
+            {workerRestartMsg && (
+              <p className="text-xs text-slate-300 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700 font-mono">
+                {workerRestartMsg}
+              </p>
+            )}
 
             {/* Build log */}
             {astBuildLines.length > 0 && (
@@ -1863,6 +1968,49 @@ exten => _X.,1,NoOp(Chiamata da \${CALLERID(num)})
               </div>
             )}
 
+          </div>
+        </section>
+
+        {/* SSH */}
+        <section>
+          <h2 className="text-lg font-bold mb-4">Accesso SSH</h2>
+          <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold">Servizio SSH</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {sshActive
+                    ? "SSH attivo — porta 22 in ascolto."
+                    : "SSH disattivato — connessioni remote bloccate."}
+                </p>
+                {sshMsg && (
+                  <p className="text-xs text-slate-300 font-mono mt-1">{sshMsg}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                  sshActive ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-800 text-slate-500"
+                }`}>
+                  {sshActive ? "Attivo" : "Disattivo"}
+                </span>
+                <button
+                  onClick={toggleSsh}
+                  disabled={sshLoading}
+                  className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
+                    sshActive
+                      ? "border-red-700 text-red-400 hover:bg-red-600/10"
+                      : "border-emerald-700 text-emerald-400 hover:bg-emerald-600/10"
+                  }`}
+                >
+                  {sshLoading
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : sshActive
+                    ? <WifiOff className="h-4 w-4" />
+                    : <Wifi className="h-4 w-4" />}
+                  {sshActive ? "Disattiva SSH" : "Attiva SSH"}
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 

@@ -24,3 +24,11 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ rows, total, page, pageSize });
 }
+
+export async function DELETE() {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
+
+  const { count } = await prisma.missedCall.deleteMany();
+  return NextResponse.json({ ok: true, deleted: count });
+}
