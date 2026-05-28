@@ -175,6 +175,14 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
+model WhatsappLog {
+  id        String   @id @default(cuid())
+  direction String   // "outbound" | "inbound"
+  type      String   // "verification" | "cancellation"
+  phone     String
+  createdAt DateTime @default(now())
+}
+
 model SuperAdmin {
   id          String   @id @default(cuid())
   email       String   @unique

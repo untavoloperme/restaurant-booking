@@ -507,6 +507,9 @@ export default function ReservationsPage() {
                     <span className="text-xs text-muted-foreground font-mono">#{idx + 1}</span>
                     <span className="font-semibold">{r.customerName}</span>
                     <Badge variant={sm.variant}>{sm.label}</Badge>
+                    {r.source === "CHATBOT" && (
+                      <Badge variant="outline" className="text-xs border-green-300 text-green-700">WhatsApp</Badge>
+                    )}
                     {r.source === "ADMIN" && (
                       <Badge variant="outline" className="text-xs">Admin</Badge>
                     )}

@@ -73,7 +73,22 @@ export async function GET(req: Request) {
     .sort((a, b) => b.quantity - a.quantity)
     .slice(0, 15);
 
-  // ── 4. Tempo medio di permanenza ─────────────────────────
+  // ── 4. WhatsApp ───────────────────────────────────────────
+  const [waLogs, waChatbot] = await Promise.all([
+    prisma.whatsappLog.findMany({
+      where: { createdAt: { gte: from, lt: to } },
+      select: { type: true },
+    }),
+    prisma.reservation.count({
+      where: { createdAt: { gte: from, lt: to }, source: "CHATBOT" },
+    }),
+  ]);
+
+  const waSent        = waLogs.filter(l => l.type === "verification").length;
+  const waCancelled   = waLogs.filter(l => l.type === "cancellation").length;
+  const whatsapp = { sent: waSent, cancellations: waCancelled, fromChatbot: waChatbot };
+
+  // ── 5. Tempo medio di permanenza ─────────────────────────
   const completedRes = allReservations.filter(
     (r) => r.status === "CHECKED_OUT" && r.arrivedAt && r.checkedOutAt
   ) as Array<{ arrivedAt: Date; checkedOutAt: Date }>;
@@ -100,5 +115,6 @@ export async function GET(req: Request) {
     totalRevenue,
     topDishes,
     avgDuration,
+    whatsapp,
   });
 }

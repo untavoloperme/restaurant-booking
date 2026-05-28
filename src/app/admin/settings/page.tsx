@@ -38,7 +38,6 @@ interface SettingsData {
   "slot.driftMinutes": string;
   "whatsapp.enabled": string;
   "whatsapp.service.enabled": string;
-  "whatsapp.autoresponder.keywords": string;
 }
 
 export default function SettingsPage() {
@@ -54,11 +53,6 @@ export default function SettingsPage() {
   const copertoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nameSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
-
-  // WhatsApp state
-  const [waKeywordsInput, setWaKeywordsInput] = useState("");
-  const [waSaving, setWaSaving] = useState(false);
-  const waSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // TOTP state
   const [totpEnabled, setTotpEnabled] = useState(false);
@@ -78,7 +72,6 @@ export default function SettingsPage() {
         setRestaurantPhoneInput(data["restaurant.phone"] ?? "");
         setDriftThreshold(data["slot.driftThreshold"] ?? "3");
         setDriftMinutes(data["slot.driftMinutes"] ?? "15");
-        setWaKeywordsInput(data["whatsapp.autoresponder.keywords"] || "prenota,prenotazione,tavolo,menu,info,ciao,buongiorno,salve,buonasera");
       });
 
     fetch("/api/auth/totp/status")
@@ -215,27 +208,6 @@ export default function SettingsPage() {
     }
   }
 
-  function onWaKeywordsChange(value: string) {
-    setWaKeywordsInput(value);
-    if (waSaveTimer.current) clearTimeout(waSaveTimer.current);
-    waSaveTimer.current = setTimeout(() => saveWaSettings(value), 800);
-  }
-
-  async function saveWaSettings(keywords: string) {
-    setWaSaving(true);
-    try {
-      await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ "whatsapp.autoresponder.keywords": keywords }),
-      });
-      setSettings((s) => s ? { ...s, "whatsapp.autoresponder.keywords": keywords } : s);
-    } catch {
-      toast({ title: "Errore salvataggio", variant: "destructive" });
-    } finally {
-      setWaSaving(false);
-    }
-  }
 
   async function uploadLogo(file: File) {
     setSaving("restaurant.logo");
@@ -919,21 +891,6 @@ export default function SettingsPage() {
                 checked={settings["whatsapp.service.enabled"] === "true"}
                 onCheckedChange={toggleWaService}
               />
-            </div>
-
-            {/* Autoresponder keywords */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Parole chiave autoresponder</Label>
-              <p className="text-xs text-muted-foreground">
-                Quando un cliente invia un messaggio contenente una di queste parole, riceve automaticamente il link di prenotazione. Separa con virgola.
-              </p>
-              <Input
-                value={waKeywordsInput}
-                onChange={e => onWaKeywordsChange(e.target.value)}
-                placeholder="prenota,tavolo,info,ciao,buongiorno…"
-                className="font-mono text-sm"
-              />
-              {waSaving && <p className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…</p>}
             </div>
           </CardContent>
         </Card>

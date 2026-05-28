@@ -2,8 +2,10 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
 import { emitEvent } from "@/lib/sse";
-import { getWhatsappConfig, sendMessage } from "@/lib/sendapp";
+import { getWhatsappConfig, sendMessage, logWhatsapp } from "@/lib/sendapp";
 
 const VerifySchema = z.object({
   reservationId: z.string().min(1),
@@ -38,6 +40,25 @@ export async function POST(req: Request) {
       data: { phoneVerified: true, verificationCode: null },
     });
     emitEvent("reservation_updated", { id: reservationId });
+
+    try {
+      const waCfg = await getWhatsappConfig();
+      if (waCfg.token && waCfg.instanceId) {
+        const dateFormatted = format(reservation.date, "EEEE d MMMM yyyy", { locale: it });
+        const people = reservation.partySize === 1 ? "1 persona" : `${reservation.partySize} persone`;
+        const confirmMsg = `✅ Prenotazione confermata!\n\n📋 Codice: ${reservation.code}\n📅 ${dateFormatted}\n🕐 Orario: ${reservation.time}\n👥 ${people}\n\nTi aspettiamo! 🍽️`;
+        await sendMessage({
+          token: waCfg.token,
+          instanceId: waCfg.instanceId,
+          number: reservation.phone.replace(/\D/g, ""),
+          message: confirmMsg,
+        });
+        void logWhatsapp("outbound", "confirmation", reservation.phone.replace(/\D/g, ""));
+      }
+    } catch (err) {
+      console.error("[whatsapp/verify] confirmation send failed:", err);
+    }
+
     return NextResponse.json({ verified: true });
   }
 
@@ -59,6 +80,7 @@ export async function POST(req: Request) {
           number: reservation.phone.replace(/\D/g, ""),
           message: `La tua prenotazione ${reservation.code} è stata annullata perché il numero di telefono non è stato verificato correttamente.\n\nSe vuoi prenotare nuovamente visita il nostro sito.`,
         });
+        void logWhatsapp("outbound", "cancellation", reservation.phone.replace(/\D/g, ""));
       }
     } catch (err) {
       console.error("[whatsapp/verify] cancel notify failed:", err);

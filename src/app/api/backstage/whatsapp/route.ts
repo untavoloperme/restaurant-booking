@@ -8,6 +8,7 @@ const WA_KEYS = [
   "whatsapp.instance.id",
   "whatsapp.message",
   "whatsapp.booking.url",
+  "whatsapp.autoresponder.keywords",
 ] as const;
 
 export async function GET() {
@@ -29,6 +30,7 @@ export async function GET() {
     instanceId: map["whatsapp.instance.id"] ?? "",
     message: map["whatsapp.message"] ?? "",
     bookingUrl: map["whatsapp.booking.url"] || `${baseUrl}/prenota`,
+    keywords: map["whatsapp.autoresponder.keywords"] ?? "",
   });
 }
 
@@ -54,6 +56,9 @@ export async function PATCH(req: Request) {
   }
   if (typeof body.bookingUrl === "string") {
     updates.push({ key: "whatsapp.booking.url", value: body.bookingUrl.trim() });
+  }
+  if (typeof body.keywords === "string") {
+    updates.push({ key: "whatsapp.autoresponder.keywords", value: body.keywords.trim() });
   }
 
   for (const { key, value } of updates) {

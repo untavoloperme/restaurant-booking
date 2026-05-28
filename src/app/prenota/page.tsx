@@ -288,7 +288,6 @@ function PrenotaPageInner() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState(() => {
     // Will be overridden by useEffect for SSR safety
     return "";
@@ -372,15 +371,10 @@ function PrenotaPageInner() {
       if (results.length > 0) {
         const contact = results[0];
         const fullName = (contact.name?.[0] ?? "").trim();
-        if (fullName) {
-          const parts = fullName.split(/\s+/);
-          setFirstName(parts[0] ?? "");
-          setLastName(parts.slice(1).join(" ") ?? "");
-        }
+        if (fullName) setFirstName(fullName);
         const tel = (contact.tel?.[0] ?? "").trim();
         if (tel) setPhone(tel.replace(/^\+39\s?/, "").trim());
-        // Clear any existing errors for these fields
-        setFieldErrors((fe) => ({ ...fe, firstName: "", lastName: "", phone: "" }));
+        setFieldErrors((fe) => ({ ...fe, firstName: "", phone: "" }));
       }
     } catch {
       // User cancelled or permission denied — silent
@@ -454,7 +448,6 @@ function PrenotaPageInner() {
   function validateInfo(): boolean {
     const errs: Record<string, string> = {};
     if (firstName.trim().length < 2) errs.firstName = "Inserisci il nome (min. 2 caratteri).";
-    if (lastName.trim().length < 2) errs.lastName = "Inserisci il cognome (min. 2 caratteri).";
     const cleanPhone = phone.trim().replace(/\s+/g, " ");
     if (!PHONE_RE.test(cleanPhone))
       errs.phone = "Inserisci un cellulare italiano valido (es. 333 1234567).";
@@ -479,7 +472,7 @@ function PrenotaPageInner() {
     if (!selectedDate || !selectedTime || !partySize) return;
     setSubmitLoading(true);
     setSubmitError(null);
-    const customerName = `${firstName.trim()} ${lastName.trim()}`;
+    const customerName = firstName.trim();
     const finalNotes = buildFinalNotes();
     try {
       const res = await fetch("/api/public/reservations", {
@@ -557,7 +550,6 @@ function PrenotaPageInner() {
     setSelectedDate(null);
     setSelectedTime(null);
     setFirstName("");
-    setLastName("");
     setPhone("");
     setNotes("");
     setFieldErrors({});
@@ -572,7 +564,7 @@ function PrenotaPageInner() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const customerName = `${firstName.trim()} ${lastName.trim()}`.trim();
+  const customerName = firstName.trim();
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col" ref={topRef}>
@@ -814,37 +806,6 @@ function PrenotaPageInner() {
                   />
                   {fieldErrors.firstName && (
                     <p className="mt-1 text-xs text-red-600">{fieldErrors.firstName}</p>
-                  )}
-                </div>
-
-                {/* Last name */}
-                <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1.5">
-                    <span className="flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-stone-400" />
-                      Cognome *
-                    </span>
-                  </label>
-                  <input
-                    type="text"
-                    name="family-name"
-                    autoComplete="family-name"
-                    inputMode="text"
-                    value={lastName}
-                    onChange={(e) => {
-                      setLastName(e.target.value);
-                      if (fieldErrors.lastName) setFieldErrors((fe) => ({ ...fe, lastName: "" }));
-                    }}
-                    placeholder="Rossi"
-                    className={[
-                      "w-full px-4 py-3.5 rounded-xl border text-stone-800 text-base bg-white",
-                      "focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent",
-                      "placeholder:text-stone-300 transition-all",
-                      fieldErrors.lastName ? "border-red-400 bg-red-50" : "border-stone-200",
-                    ].join(" ")}
-                  />
-                  {fieldErrors.lastName && (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.lastName}</p>
                   )}
                 </div>
 

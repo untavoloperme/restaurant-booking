@@ -9,6 +9,7 @@ import {
   LogOut, Loader2, ToggleLeft, ToggleRight, Lock,
   GitBranch, RefreshCw, CheckCircle2, AlertCircle, Terminal,
   Database, Trash2, Globe, MessageSquare, Smartphone,
+  UserPlus, Pencil, X, KeyRound, ClipboardList, PhoneOutgoing, ShieldAlert,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -28,11 +29,35 @@ const MODULES = [
 
 type ModuleKey = (typeof MODULES)[number]["key"];
 
+interface BsUser {
+  id: string;
+  email: string;
+  name: string;
+  role: "ADMIN" | "STAFF" | "KITCHEN";
+  active: boolean;
+  createdAt: string;
+}
+
 interface SystemInfo {
   version: string;
   gitHash: string;
   gitBranch: string;
   latestVersion: string | null;
+}
+
+interface WaLogEntry {
+  id: string;
+  direction: string;
+  type: string;
+  phone: string;
+  createdAt: string;
+}
+
+interface WaLastSync {
+  at: string;
+  ok: boolean;
+  raw: string;
+  ruleId: string | null;
 }
 
 export default function BackstagePage() {
@@ -82,10 +107,26 @@ export default function BackstagePage() {
   const [waAccountsError, setWaAccountsError] = useState("");
   const [waMessage, setWaMessage] = useState("");
   const [waBookingUrl, setWaBookingUrl] = useState("");
+  const [waKeywords, setWaKeywords] = useState("");
   const [waSaving, setWaSaving] = useState(false);
   const [waMsg, setWaMsg] = useState("");
   const [waSyncLoading, setWaSyncLoading] = useState(false);
   const [waSyncMsg, setWaSyncMsg] = useState("");
+
+  // WhatsApp log state
+  const [waLog, setWaLog] = useState<WaLogEntry[]>([]);
+  const [waLastSync, setWaLastSync] = useState<WaLastSync | null>(null);
+  const [waLogLoading, setWaLogLoading] = useState(false);
+  const [waRawExpanded, setWaRawExpanded] = useState(false);
+
+  // Users management state
+  const [users, setUsers] = useState<BsUser[]>([]);
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: "", email: "", password: "", role: "STAFF" as BsUser["role"] });
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", role: "STAFF" as BsUser["role"], active: true, password: "" });
+  const [userLoading, setUserLoading] = useState(false);
+  const [userMsg, setUserMsg] = useState("");
 
   const didFetch = useRef(false);
 
@@ -111,7 +152,8 @@ export default function BackstagePage() {
       fetch("/api/backstage/system").then(r => r.json()),
       fetch("/api/backstage/demo").then(r => r.json()),
       fetch("/api/backstage/whatsapp").then(r => r.json()),
-    ]).then(([mods, me, sys, demo, wa]) => {
+      fetch("/api/backstage/users").then(r => r.json()),
+    ]).then(([mods, me, sys, demo, wa, usrs]) => {
       setModules(mods);
       setSaEmail(me.email ?? "");
       setTotpEnabled(me.totpEnabled ?? false);
@@ -123,7 +165,11 @@ export default function BackstagePage() {
       setWaInstanceId(wa.instanceId ?? "");
       setWaMessage(wa.message ?? "");
       setWaBookingUrl(wa.bookingUrl ?? "");
+      setWaKeywords(wa.keywords ?? "");
+      if (Array.isArray(usrs)) setUsers(usrs);
     }).catch(() => router.push("/backstage/login"));
+
+    void loadWaLog();
   }, [router]);
 
   async function toggleModule(key: ModuleKey) {
@@ -267,6 +313,27 @@ export default function BackstagePage() {
     }
   }
 
+  async function toggleWaEnabled() {
+    const next = !waEnabled;
+    setWaEnabled(next);
+    setWaSaving(true);
+    setWaMsg("");
+    try {
+      const res = await fetch("/api/backstage/whatsapp", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      if (!res.ok) throw new Error("Errore salvataggio");
+      setWaMsg(next ? "Modulo WhatsApp attivato" : "Modulo WhatsApp disattivato");
+    } catch (e) {
+      setWaEnabled(!next);
+      setWaMsg((e as Error).message);
+    } finally {
+      setWaSaving(false);
+    }
+  }
+
   async function saveWaSettings() {
     setWaSaving(true);
     setWaMsg("");
@@ -276,6 +343,7 @@ export default function BackstagePage() {
         instanceId: waInstanceId,
         message: waMessage,
         bookingUrl: waBookingUrl,
+        keywords: waKeywords,
       };
       if (waTokenInput.trim()) body.token = waTokenInput.trim();
 
@@ -304,10 +372,26 @@ export default function BackstagePage() {
       const data = await res.json() as { ok?: boolean; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Errore sincronizzazione");
       setWaSyncMsg("Autoresponder sincronizzato con successo");
+      void loadWaLog();
     } catch (e) {
       setWaSyncMsg((e as Error).message);
+      void loadWaLog();
     } finally {
       setWaSyncLoading(false);
+    }
+  }
+
+  async function loadWaLog() {
+    setWaLogLoading(true);
+    try {
+      const res = await fetch("/api/backstage/whatsapp/log");
+      const data = await res.json() as { messages: WaLogEntry[]; lastSync: WaLastSync | null };
+      if (res.ok) {
+        setWaLog(data.messages ?? []);
+        setWaLastSync(data.lastSync ?? null);
+      }
+    } catch { /* non-critical */ } finally {
+      setWaLogLoading(false);
     }
   }
 
@@ -370,6 +454,91 @@ export default function BackstagePage() {
       setTotpLoading(false);
     }
   }
+
+  // User management handlers
+  async function createUser() {
+    if (!createForm.name || !createForm.email || !createForm.password) {
+      setUserMsg("Compila tutti i campi");
+      return;
+    }
+    setUserLoading(true);
+    setUserMsg("");
+    try {
+      const res = await fetch("/api/backstage/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(createForm),
+      });
+      const data = await res.json() as BsUser & { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Errore");
+      setUsers(prev => [...prev, data]);
+      setCreatingUser(false);
+      setCreateForm({ name: "", email: "", password: "", role: "STAFF" });
+      setUserMsg("Utente creato");
+    } catch (e) {
+      setUserMsg((e as Error).message);
+    } finally {
+      setUserLoading(false);
+    }
+  }
+
+  function startEditUser(user: BsUser) {
+    setEditingUserId(user.id);
+    setEditForm({ name: user.name, role: user.role, active: user.active, password: "" });
+    setUserMsg("");
+  }
+
+  async function saveEditUser() {
+    if (!editingUserId) return;
+    setUserLoading(true);
+    setUserMsg("");
+    try {
+      const body: Record<string, unknown> = {
+        name: editForm.name,
+        role: editForm.role,
+        active: editForm.active,
+      };
+      if (editForm.password.trim()) body.password = editForm.password.trim();
+      const res = await fetch(`/api/backstage/users/${editingUserId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json() as BsUser & { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Errore");
+      setUsers(prev => prev.map(u => u.id === editingUserId ? data : u));
+      setEditingUserId(null);
+      setUserMsg("Utente aggiornato");
+    } catch (e) {
+      setUserMsg((e as Error).message);
+    } finally {
+      setUserLoading(false);
+    }
+  }
+
+  async function deleteUser(id: string, name: string) {
+    if (!confirm(`Eliminare l'utente "${name}"? L'operazione è irreversibile.`)) return;
+    setUserLoading(true);
+    setUserMsg("");
+    try {
+      const res = await fetch(`/api/backstage/users/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Errore eliminazione");
+      setUsers(prev => prev.filter(u => u.id !== id));
+      if (editingUserId === id) setEditingUserId(null);
+      setUserMsg("Utente eliminato");
+    } catch (e) {
+      setUserMsg((e as Error).message);
+    } finally {
+      setUserLoading(false);
+    }
+  }
+
+  const ROLE_LABEL: Record<BsUser["role"], string> = { ADMIN: "Admin", STAFF: "Staff", KITCHEN: "Cucina" };
+  const ROLE_COLOR: Record<BsUser["role"], string> = {
+    ADMIN: "bg-indigo-500/20 text-indigo-300",
+    STAFF: "bg-slate-700 text-slate-300",
+    KITCHEN: "bg-amber-500/20 text-amber-300",
+  };
 
   const enabledCount = MODULES.filter(m => modules[m.key] !== false).length;
 
@@ -647,6 +816,210 @@ export default function BackstagePage() {
           </div>
         </section>
 
+        {/* Gestione Utenti */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">Gestione Utenti</h2>
+            <button
+              onClick={() => { setCreatingUser(v => !v); setEditingUserId(null); setUserMsg(""); }}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-indigo-600 text-indigo-300 hover:bg-indigo-600/20 transition-colors"
+            >
+              {creatingUser ? <X className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
+              {creatingUser ? "Annulla" : "Nuovo utente"}
+            </button>
+          </div>
+
+          <div className="space-y-3">
+
+            {/* Create form */}
+            {creatingUser && (
+              <div className="rounded-xl border border-indigo-500/40 bg-indigo-500/5 p-4 space-y-3">
+                <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wide">Nuovo utente</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400">Nome</label>
+                    <Input
+                      placeholder="Mario Rossi"
+                      value={createForm.name}
+                      onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))}
+                      className="bg-slate-900 border-slate-700 text-slate-100 text-sm h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400">Email</label>
+                    <Input
+                      type="email"
+                      placeholder="mario@esempio.it"
+                      value={createForm.email}
+                      onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))}
+                      className="bg-slate-900 border-slate-700 text-slate-100 text-sm h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400">Password</label>
+                    <Input
+                      type="password"
+                      placeholder="Min. 8 caratteri"
+                      value={createForm.password}
+                      onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))}
+                      className="bg-slate-900 border-slate-700 text-slate-100 text-sm h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400">Ruolo</label>
+                    <select
+                      value={createForm.role}
+                      onChange={e => setCreateForm(f => ({ ...f, role: e.target.value as BsUser["role"] }))}
+                      className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 h-8 text-sm"
+                    >
+                      <option value="STAFF">Staff</option>
+                      <option value="ADMIN">Admin</option>
+                      <option value="KITCHEN">Cucina</option>
+                    </select>
+                  </div>
+                </div>
+                <button
+                  onClick={createUser}
+                  disabled={userLoading}
+                  className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg text-white disabled:opacity-50 transition-opacity"
+                  style={{ background: "linear-gradient(135deg,#4f46e5,#7c3aed)" }}
+                >
+                  {userLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                  Crea utente
+                </button>
+              </div>
+            )}
+
+            {/* User list */}
+            {users.length === 0 && !creatingUser && (
+              <p className="text-sm text-slate-500 py-4 text-center rounded-xl border border-slate-800">
+                Nessun utente. Creane uno con il pulsante sopra.
+              </p>
+            )}
+
+            {users.map(user => (
+              <div key={user.id} className="rounded-xl border border-slate-700/60 bg-slate-900/60">
+                {/* User row */}
+                <div className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center shrink-0">
+                      <Users className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-slate-100">{user.name}</span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_COLOR[user.role]}`}>
+                          {ROLE_LABEL[user.role]}
+                        </span>
+                        {!user.active && (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-500/15 text-red-400">
+                            Disabilitato
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => editingUserId === user.id ? setEditingUserId(null) : startEditUser(user)}
+                      className={`p-1.5 rounded-lg transition-colors ${editingUserId === user.id ? "bg-indigo-500/20 text-indigo-300" : "text-slate-500 hover:text-slate-200 hover:bg-slate-800"}`}
+                      title="Modifica"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => deleteUser(user.id, user.name)}
+                      disabled={userLoading}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                      title="Elimina"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inline edit panel */}
+                {editingUserId === user.id && (
+                  <div className="border-t border-slate-700/60 px-4 py-3 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400">Nome</label>
+                        <Input
+                          value={editForm.name}
+                          onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                          className="bg-slate-950 border-slate-700 text-slate-100 text-sm h-8"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400">Ruolo</label>
+                        <select
+                          value={editForm.role}
+                          onChange={e => setEditForm(f => ({ ...f, role: e.target.value as BsUser["role"] }))}
+                          className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg px-3 h-8 text-sm"
+                        >
+                          <option value="STAFF">Staff</option>
+                          <option value="ADMIN">Admin</option>
+                          <option value="KITCHEN">Cucina</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400 flex items-center gap-1">
+                          <KeyRound className="h-3 w-3" /> Nuova password (opzionale)
+                        </label>
+                        <Input
+                          type="password"
+                          placeholder="Lascia vuoto per non cambiare"
+                          value={editForm.password}
+                          onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))}
+                          className="bg-slate-950 border-slate-700 text-slate-100 text-sm h-8"
+                        />
+                      </div>
+                      <div className="space-y-1 flex flex-col justify-end">
+                        <label className="text-xs text-slate-400">Stato</label>
+                        <button
+                          onClick={() => setEditForm(f => ({ ...f, active: !f.active }))}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          {editForm.active
+                            ? <ToggleRight className="h-5 w-5 text-indigo-400" />
+                            : <ToggleLeft className="h-5 w-5 text-slate-600" />}
+                          <span className={editForm.active ? "text-slate-200" : "text-slate-500"}>
+                            {editForm.active ? "Attivo" : "Disabilitato"}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={saveEditUser}
+                        disabled={userLoading}
+                        className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg text-white disabled:opacity-50 transition-opacity"
+                        style={{ background: "linear-gradient(135deg,#4f46e5,#7c3aed)" }}
+                      >
+                        {userLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                        Salva
+                      </button>
+                      <button
+                        onClick={() => setEditingUserId(null)}
+                        className="text-sm px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition-colors"
+                      >
+                        Annulla
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {userMsg && (
+              <p className="text-xs text-slate-300 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700 font-mono">
+                {userMsg}
+              </p>
+            )}
+          </div>
+        </section>
+
         {/* WhatsApp / SendApp */}
         <section>
           <h2 className="text-lg font-bold mb-4">WhatsApp / SendApp</h2>
@@ -657,15 +1030,18 @@ export default function BackstagePage() {
               <div>
                 <p className="text-sm font-semibold">Modulo WhatsApp</p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Attiva per abilitare le risposte automatiche ai messaggi WhatsApp in arrivo.
+                  Attiva per abilitare la verifica telefono e l&apos;autoresponder SendApp.
                 </p>
               </div>
               <button
-                onClick={() => setWaEnabled(v => !v)}
+                onClick={toggleWaEnabled}
+                disabled={waSaving}
                 className="shrink-0 mt-0.5"
                 aria-label={waEnabled ? "Disattiva modulo" : "Attiva modulo"}
               >
-                {waEnabled
+                {waSaving
+                  ? <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
+                  : waEnabled
                   ? <ToggleRight className="h-6 w-6 text-indigo-400" />
                   : <ToggleLeft className="h-6 w-6 text-slate-600" />}
               </button>
@@ -761,6 +1137,23 @@ export default function BackstagePage() {
               />
             </div>
 
+            {/* Keywords */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                Parole chiave autoresponder
+              </label>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Quando un cliente invia un messaggio contenente una di queste parole, riceve automaticamente il link di prenotazione. Separa con virgola.
+              </p>
+              <Input
+                type="text"
+                placeholder="prenota,prenotazione,tavolo,menu,info,ciao,buongiorno,salve,buonasera"
+                value={waKeywords}
+                onChange={e => setWaKeywords(e.target.value)}
+                className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono"
+              />
+            </div>
+
             {/* Booking URL */}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
@@ -826,6 +1219,132 @@ export default function BackstagePage() {
                 </p>
               )}
             </div>
+          </div>
+        </section>
+
+        {/* Log WhatsApp */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold">Log WhatsApp</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Sincronizzazioni autoresponder e messaggi inviati ai clienti</p>
+            </div>
+            <button
+              onClick={loadWaLog}
+              disabled={waLogLoading}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:border-slate-500 transition-colors disabled:opacity-50"
+            >
+              {waLogLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Aggiorna
+            </button>
+          </div>
+
+          <div className="space-y-3">
+
+            {/* Ultima sync */}
+            <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-4 space-y-2">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-2">
+                <ClipboardList className="h-3.5 w-3.5" /> Ultima sincronizzazione autoresponder
+              </p>
+              {waLastSync ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                      waLastSync.ok
+                        ? "bg-emerald-500/15 text-emerald-400"
+                        : "bg-red-500/15 text-red-400"
+                    }`}>
+                      {waLastSync.ok
+                        ? <CheckCircle2 className="h-3 w-3" />
+                        : <AlertCircle className="h-3 w-3" />}
+                      {waLastSync.ok ? "Successo" : "Errore"}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {new Date(waLastSync.at).toLocaleString("it-IT")}
+                    </span>
+                    {waLastSync.ruleId && (
+                      <span className="text-xs text-slate-500 font-mono">
+                        Regola ID: <span className="text-slate-300">{waLastSync.ruleId}</span>
+                      </span>
+                    )}
+                  </div>
+                  {waLastSync.raw && (
+                    <div>
+                      <button
+                        onClick={() => setWaRawExpanded(v => !v)}
+                        className="text-xs text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1"
+                      >
+                        {waRawExpanded ? "▲ Nascondi" : "▼ Mostra risposta SendApp"}
+                      </button>
+                      {waRawExpanded && (
+                        <pre className="mt-2 text-xs font-mono bg-black/60 rounded-lg border border-slate-800 p-3 overflow-x-auto text-slate-400 whitespace-pre-wrap break-all">
+                          {(() => {
+                            try { return JSON.stringify(JSON.parse(waLastSync.raw), null, 2); }
+                            catch { return waLastSync.raw; }
+                          })()}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-600 italic">Nessuna sincronizzazione ancora eseguita.</p>
+              )}
+            </div>
+
+            {/* Messaggi inviati */}
+            <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-700/60 flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-2">
+                  <PhoneOutgoing className="h-3.5 w-3.5" /> Messaggi inviati ai clienti
+                </p>
+                <span className="text-xs text-slate-500">{waLog.length} record</span>
+              </div>
+
+              {waLog.length === 0 ? (
+                <p className="text-xs text-slate-600 italic px-4 py-5 text-center">
+                  Nessun messaggio registrato. I messaggi vengono tracciati dall&apos;attivazione del modulo.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-700/60 text-slate-500">
+                        <th className="px-4 py-2 text-left font-medium">Data e ora</th>
+                        <th className="px-4 py-2 text-left font-medium">Tipo</th>
+                        <th className="px-4 py-2 text-left font-medium">Numero</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {waLog.map(entry => (
+                        <tr key={entry.id} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="px-4 py-2 text-slate-400 tabular-nums whitespace-nowrap">
+                            {new Date(entry.createdAt).toLocaleString("it-IT")}
+                          </td>
+                          <td className="px-4 py-2">
+                            {entry.type === "verification" ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-indigo-500/20 text-indigo-300">
+                                <KeyRound className="h-2.5 w-2.5" /> Codice OTP
+                              </span>
+                            ) : entry.type === "cancellation" ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-500/15 text-red-400">
+                                <ShieldAlert className="h-2.5 w-2.5" /> Disdetta
+                              </span>
+                            ) : (
+                              <span className="text-slate-500">{entry.type}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-slate-400 font-mono">
+                            {entry.phone.replace(/(\d{2})(\d+)(\d{3})$/, "$1•••$3")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
           </div>
         </section>
 

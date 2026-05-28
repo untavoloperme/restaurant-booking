@@ -1,5 +1,13 @@
 import { prisma } from "@/lib/prisma";
 
+export async function logWhatsapp(direction: "outbound" | "inbound", type: string, phone: string) {
+  try {
+    await prisma.whatsappLog.create({ data: { direction, type, phone } });
+  } catch {
+    // non-critical
+  }
+}
+
 const SENDAPP_BASE = "https://app.sendapp.cloud/api/v2";
 
 export interface WhatsappConfig {
@@ -62,14 +70,26 @@ interface SendMessageParams {
   mediaUrl?: string;
 }
 
+function toWhatsappNumber(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  // Già con prefisso internazionale (es. 39XXXXXXXXXX)
+  if (digits.length >= 11) return digits;
+  // Numero italiano a 10 cifre senza prefisso → aggiungi 39
+  if (digits.length === 10 && digits.startsWith("3")) return "39" + digits;
+  return digits;
+}
+
 export async function sendMessage(params: SendMessageParams): Promise<void> {
   const { token, instanceId, number, message, mediaUrl } = params;
+  const formattedNumber = toWhatsappNumber(number);
   const body: Record<string, string> = {
-    number,
+    number: formattedNumber,
     message,
     instance_id: instanceId,
   };
   if (mediaUrl) body.media_url = mediaUrl;
+
+  console.log("[sendapp/sendMessage] to:", formattedNumber, "instance:", instanceId);
 
   const res = await fetch(`${SENDAPP_BASE}/whatsapp/send`, {
     method: "POST",
@@ -79,9 +99,10 @@ export async function sendMessage(params: SendMessageParams): Promise<void> {
     },
     body: JSON.stringify(body),
   });
+  const responseText = await res.text().catch(() => "");
+  console.log("[sendapp/sendMessage] status:", res.status, "response:", responseText.slice(0, 200));
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`SendApp send error ${res.status}: ${text}`);
+    throw new Error(`SendApp send error ${res.status}: ${responseText}`);
   }
 }
 
@@ -131,37 +152,83 @@ export function generateToken(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+export async function deleteChatbotRule(token: string, ruleId: string): Promise<void> {
+  const res = await fetch(`${SENDAPP_BASE}/chatbot/${ruleId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  console.log("[sendapp/deleteChatbotRule] id:", ruleId, "status:", res.status);
+}
+
+export async function listChatbotRules(token: string, instanceId: string): Promise<{ id: number }[]> {
+  const res = await fetch(`${SENDAPP_BASE}/chatbot?instance_id=${encodeURIComponent(instanceId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  const data = await res.json().catch(() => null);
+  console.log("[sendapp/listChatbotRules] status:", res.status, "data:", JSON.stringify(data).slice(0, 300));
+  const rows = (data as { data?: { id: number }[] } | null)?.data ?? [];
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function getChatbotRule(token: string, ruleId: string): Promise<unknown> {
+  const res = await fetch(`${SENDAPP_BASE}/chatbot/${ruleId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  const data = await res.json().catch(() => null);
+  console.log("[sendapp/getChatbotRule] id:", ruleId, "status:", res.status, "data:", JSON.stringify(data).slice(0, 300));
+  return data;
+}
+
 interface SyncAutoresponderParams {
   token: string;
   instanceId: string;
   keywords: string;
   message: string;
+  name?: string;
   mediaUrl?: string;
+  existingRuleId?: string;
 }
 
-export async function syncAutoresponder(params: SyncAutoresponderParams): Promise<{ ok: boolean; raw?: unknown }> {
-  const { token, instanceId, keywords, message, mediaUrl } = params;
-  const body: Record<string, string> = {
-    keywords,
+export async function syncAutoresponder(params: SyncAutoresponderParams): Promise<{ ok: boolean; raw?: unknown; ruleId?: string }> {
+  const { token, instanceId, keywords, message, name = "Autorisponditore" } = params;
+  void (params.mediaUrl); // media non supportato dall'endpoint chatbot
+
+  // Elimina TUTTE le regole esistenti per l'istanza (evita duplicati)
+  const existing = await listChatbotRules(token, instanceId).catch(() => [] as { id: number }[]);
+  console.log("[sendapp/syncAutoresponder] existing rules:", existing.map(r => r.id));
+  await Promise.all(existing.map(r => deleteChatbotRule(token, String(r.id)).catch(() => {})));
+
+  // Keywords come stringa CSV — SendApp non accetta array JSON
+  const keywordsCsv = keywords
+    .split(",")
+    .map(k => k.trim())
+    .filter(Boolean)
+    .join(",");
+
+  const body: Record<string, unknown> = {
+    name,
+    keywords: keywordsCsv,
     caption: message,
     instance_id: instanceId,
-    type_search: "contains",
-    send_to: "sender",
+    type_search: 1,  // 0=exact, 1=contains
+    send_to: 0,      // 0=sender
   };
-  if (mediaUrl) body.media = mediaUrl;
 
+  console.log("[sendapp/syncAutoresponder] POST payload:", JSON.stringify(body).slice(0, 400));
   const res = await fetch(`${SENDAPP_BASE}/chatbot`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   });
   const raw = await res.json().catch(() => null);
-  if (process.env.NODE_ENV !== "production") {
-    console.log("[sendapp/syncAutoresponder] status:", res.status, "body:", JSON.stringify(raw).slice(0, 300));
-  }
+  console.log("[sendapp/syncAutoresponder] POST status:", res.status, "body:", JSON.stringify(raw).slice(0, 300));
   if (!res.ok) throw new Error(`SendApp chatbot error ${res.status}: ${JSON.stringify(raw)}`);
-  return { ok: true, raw };
+
+  const ruleId = (raw as { data?: { id?: number } } | null)?.data?.id
+    ? String((raw as { data: { id: number } }).data.id)
+    : undefined;
+
+  return { ok: true, raw, ruleId };
 }

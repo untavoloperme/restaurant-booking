@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CalendarCheck, TrendingUp, UtensilsCrossed, Clock, RefreshCw, Loader2 } from "lucide-react";
+import { CalendarCheck, TrendingUp, UtensilsCrossed, Clock, RefreshCw, Loader2, MessageCircle } from "lucide-react";
 
 interface ReservationDay {
   date: string;
@@ -37,12 +37,19 @@ interface AvgDuration {
   samples: number;
 }
 
+interface WhatsappStats {
+  sent: number;
+  cancellations: number;
+  fromChatbot: number;
+}
+
 interface StatsData {
   reservationsByDate: ReservationDay[];
   revenueByDate: RevenueDay[];
   totalRevenue: number;
   topDishes: TopDish[];
   avgDuration: AvgDuration | null;
+  whatsapp: WhatsappStats | null;
 }
 
 function fmtDate(d: string) {
@@ -180,6 +187,36 @@ export default function StatsPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* WhatsApp */}
+          {data.whatsapp && (data.whatsapp.sent > 0 || data.whatsapp.fromChatbot > 0) && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 text-green-600" /> WhatsApp
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold">{data.whatsapp.sent}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Messaggi inviati</p>
+                    <p className="text-xs text-muted-foreground">(codici OTP)</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-destructive">{data.whatsapp.cancellations}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Avvisi disdetta</p>
+                    <p className="text-xs text-muted-foreground">inviati</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-green-700">{data.whatsapp.fromChatbot}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Prenotazioni</p>
+                    <p className="text-xs text-muted-foreground">dal chatbot</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Prenotazioni per data */}
           <Card>

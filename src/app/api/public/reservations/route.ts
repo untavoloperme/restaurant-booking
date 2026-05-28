@@ -7,7 +7,7 @@ import { resolveSlot } from "@/lib/slots";
 import { startOfDay, addMinutes, format } from "date-fns";
 import { nanoid } from "nanoid";
 import { emitEvent } from "@/lib/sse";
-import { getWhatsappConfig, sendMessage, generateToken } from "@/lib/sendapp";
+import { getWhatsappConfig, sendMessage, generateToken, logWhatsapp } from "@/lib/sendapp";
 
 function generateCode(): string {
   return "BCK-" + nanoid(6).toUpperCase();
@@ -103,6 +103,7 @@ export async function POST(req: Request) {
         number: phone.trim().replace(/\D/g, ""),
         message: `Il tuo codice di conferma prenotazione è: *${verificationCode}*\n\nInseriscilo nella pagina di riepilogo per confermare il tuo tavolo.`,
       });
+      void logWhatsapp("outbound", "verification", phone.trim().replace(/\D/g, ""));
     } catch (err) {
       console.error("[reservations] WhatsApp token send failed:", err);
     }

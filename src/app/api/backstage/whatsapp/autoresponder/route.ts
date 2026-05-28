@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSaSession } from "@/lib/sa-auth";
-import { syncAutoresponder } from "@/lib/sendapp";
+import { syncAutoresponder, getChatbotRule } from "@/lib/sendapp";
 
 export async function POST() {
   const session = await getSaSession();
@@ -13,6 +13,7 @@ export async function POST() {
     "whatsapp.message",
     "whatsapp.booking.url",
     "whatsapp.autoresponder.keywords",
+    "whatsapp.chatbot.rule.id",
     "restaurant.logo",
   ];
   const rows = await prisma.setting.findMany({ where: { key: { in: keys } } });
@@ -29,7 +30,8 @@ export async function POST() {
   const message = (map["whatsapp.message"] || `🍽️ Prenota il tuo tavolo in pochi click!\n\n👇 Clicca qui:\n{link}\n\nA presto! 😊`)
     .replace(/\{link\}/g, bookingUrl);
 
-  const keywords = map["whatsapp.autoresponder.keywords"] || "prenota,prenotazione,tavolo,menu,info,ciao,buongiorno,salve,buonasera";
+  const keywords = map["whatsapp.autoresponder.keywords"] || "prenota,prenotare,prenotazione,tavolo,ciao,salve,buongiorno,buonasera,info,menu";
+  const existingRuleId = map["whatsapp.chatbot.rule.id"] ?? undefined;
 
   let mediaUrl: string | undefined;
   const logo = map["restaurant.logo"] ?? "";
@@ -38,10 +40,31 @@ export async function POST() {
     if (absLogo.startsWith("https://")) mediaUrl = absLogo;
   }
 
+  const syncedAt = new Date().toISOString();
   try {
-    const result = await syncAutoresponder({ token, instanceId, keywords, message, mediaUrl });
-    return NextResponse.json({ ok: true, raw: result.raw });
+    const result = await syncAutoresponder({ token, instanceId, keywords, message, mediaUrl, existingRuleId });
+
+    const saveOps = [
+      prisma.setting.upsert({ where: { key: "whatsapp.last.sync.at" },  create: { key: "whatsapp.last.sync.at",  value: syncedAt },                  update: { value: syncedAt } }),
+      prisma.setting.upsert({ where: { key: "whatsapp.last.sync.ok" },  create: { key: "whatsapp.last.sync.ok",  value: "true" },                    update: { value: "true" } }),
+      prisma.setting.upsert({ where: { key: "whatsapp.last.sync.raw" }, create: { key: "whatsapp.last.sync.raw", value: JSON.stringify(result.raw) }, update: { value: JSON.stringify(result.raw) } }),
+    ];
+    if (result.ruleId) {
+      saveOps.push(prisma.setting.upsert({ where: { key: "whatsapp.chatbot.rule.id" }, create: { key: "whatsapp.chatbot.rule.id", value: result.ruleId }, update: { value: result.ruleId } }));
+    }
+    await Promise.all(saveOps);
+
+    // Fetch the created rule so we can inspect it
+    const ruleDetail = result.ruleId ? await getChatbotRule(token, result.ruleId).catch(() => null) : null;
+
+    return NextResponse.json({ ok: true, raw: result.raw, ruleId: result.ruleId, ruleDetail });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    const errMsg = (err as Error).message;
+    await Promise.all([
+      prisma.setting.upsert({ where: { key: "whatsapp.last.sync.at" },  create: { key: "whatsapp.last.sync.at",  value: syncedAt }, update: { value: syncedAt } }),
+      prisma.setting.upsert({ where: { key: "whatsapp.last.sync.ok" },  create: { key: "whatsapp.last.sync.ok",  value: "false" },  update: { value: "false" } }),
+      prisma.setting.upsert({ where: { key: "whatsapp.last.sync.raw" }, create: { key: "whatsapp.last.sync.raw", value: errMsg },    update: { value: errMsg } }),
+    ]).catch(() => {});
+    return NextResponse.json({ error: errMsg }, { status: 500 });
   }
 }
