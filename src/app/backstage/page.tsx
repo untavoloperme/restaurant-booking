@@ -130,6 +130,7 @@ export default function BackstagePage() {
   const [astTrunkHost, setAstTrunkHost] = useState("sip.messagenet.it");
   const [astTrunkPort, setAstTrunkPort] = useState("5061");
   const [astTrunkContext, setAstTrunkContext] = useState("from-trunk");
+  const [astTrunkRegisterPhone, setAstTrunkRegisterPhone] = useState("");
   const [astSaving, setAstSaving] = useState(false);
   const [astMsg, setAstMsg] = useState("");
   const [astStatus, setAstStatus] = useState<{
@@ -143,6 +144,11 @@ export default function BackstagePage() {
   const [astReloadMsg, setAstReloadMsg] = useState("");
   const [astSetupLoading, setAstSetupLoading] = useState(false);
   const [astSetupLines, setAstSetupLines] = useState<string[]>([]);
+  const [astBuildRunning, setAstBuildRunning] = useState(false);
+  const [astBuildLines, setAstBuildLines] = useState<string[]>([]);
+  const [astLogsLoading, setAstLogsLoading] = useState(false);
+  const [astLogsOutput, setAstLogsOutput] = useState("");
+  const [astLogsVisible, setAstLogsVisible] = useState(false);
 
   // WhatsApp log state
   const [waLog, setWaLog] = useState<WaLogEntry[]>([]);
@@ -214,6 +220,7 @@ export default function BackstagePage() {
       setAstTrunkHost(ast.trunkHost ?? "sip.messagenet.it");
       setAstTrunkPort(ast.trunkPort ?? "5061");
       setAstTrunkContext(ast.trunkContext ?? "from-trunk");
+      setAstTrunkRegisterPhone(ast.trunkRegisterPhone ?? "");
       if (astSt && !astSt.error) setAstStatus(astSt);
     }).catch(() => router.push("/backstage/login"));
 
@@ -481,6 +488,7 @@ export default function BackstagePage() {
         trunkHost: astTrunkHost,
         trunkPort: astTrunkPort,
         trunkContext: astTrunkContext,
+        trunkRegisterPhone: astTrunkRegisterPhone,
       };
       if (astAmiSecretInput.trim()) body.amiSecret = astAmiSecretInput.trim();
       if (astTrunkSecretInput.trim()) body.trunkSecret = astTrunkSecretInput.trim();
@@ -545,6 +553,51 @@ export default function BackstagePage() {
     }
   }
 
+  async function runBuild() {
+    if (!confirm("Avviare npm run build e riavviare il worker Asterisk?")) return;
+    setAstBuildRunning(true);
+    setAstBuildLines([]);
+    try {
+      const res = await fetch("/api/backstage/asterisk/build", { method: "POST" });
+      if (!res.body) throw new Error("Nessun stream");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() ?? "";
+        for (const part of parts) {
+          const dataLine = part.split("\n").find(l => l.startsWith("data: "));
+          if (!dataLine) continue;
+          const payload = dataLine.slice(6);
+          if (payload === "__DONE__") { setAstBuildRunning(false); void loadAstStatus(); return; }
+          try { setAstBuildLines(prev => [...prev, JSON.parse(payload)]); } catch { /* ignore */ }
+        }
+      }
+    } catch (e) {
+      setAstBuildLines(prev => [...prev, (e as Error).message]);
+    } finally {
+      setAstBuildRunning(false);
+    }
+  }
+
+  async function loadAsteriskLogs() {
+    setAstLogsLoading(true);
+    setAstLogsVisible(true);
+    try {
+      const res = await fetch("/api/backstage/asterisk/logs?lines=50");
+      const data = await res.json() as { output?: string };
+      setAstLogsOutput(data.output ?? "");
+    } catch (e) {
+      setAstLogsOutput((e as Error).message);
+    } finally {
+      setAstLogsLoading(false);
+    }
+  }
+
   const sipConfSnippet = `[${astTrunkName}]
 type=peer
 host=${astTrunkHost}
@@ -566,7 +619,7 @@ exten => _X.,1,NoOp(Chiamata da \${CALLERID(num)})
  same => n,Wait(1)
  same => n,Hangup()`;
 
-  const registerString = `register => ${astTrunkUsername}:${astHasTrunkSecret ? "••••" : "SECRET"}@${astTrunkHost}:${astTrunkPort}/${astTrunkUsername}`;
+  const registerString = `register => ${astTrunkUsername}:${astHasTrunkSecret ? "••••" : "SECRET"}@${astTrunkHost}:${astTrunkPort}/${astTrunkRegisterPhone || astTrunkUsername}`;
 
   // TOTP handlers
   async function startTotpSetup() {
@@ -1663,6 +1716,13 @@ exten => _X.,1,NoOp(Chiamata da \${CALLERID(num)})
                   <Input value={astTrunkContext} onChange={e => setAstTrunkContext(e.target.value)}
                     className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono h-8" />
                 </div>
+                <div className="space-y-1 col-span-2 sm:col-span-3">
+                  <label className="text-xs text-slate-400">Numero telefono register (dopo /)</label>
+                  <Input value={astTrunkRegisterPhone} onChange={e => setAstTrunkRegisterPhone(e.target.value)}
+                    placeholder={astTrunkUsername || "es. 5406423992"}
+                    className="bg-slate-900 border-slate-700 text-slate-100 text-sm font-mono h-8" />
+                  <p className="text-xs text-slate-500">Usato alla fine della register string: <span className="font-mono">…:{astTrunkPort}/{astTrunkRegisterPhone || astTrunkUsername}</span></p>
+                </div>
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-slate-400">Secret trunk SIP</label>
@@ -1747,6 +1807,60 @@ exten => _X.,1,NoOp(Chiamata da \${CALLERID(num)})
               <p className="text-xs text-slate-300 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700 font-mono">
                 {astMsg || astReloadMsg}
               </p>
+            )}
+
+            {/* Build & logs */}
+            <div className="flex flex-wrap gap-3 border-t border-slate-700/50 pt-4">
+              <button
+                onClick={runBuild}
+                disabled={astBuildRunning}
+                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-indigo-700 text-indigo-400 hover:bg-indigo-600/10 transition-colors disabled:opacity-50"
+              >
+                {astBuildRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <GitBranch className="h-4 w-4" />}
+                {astBuildRunning ? "Build in corso..." : "Build & riavvia worker"}
+              </button>
+              <button
+                onClick={loadAsteriskLogs}
+                disabled={astLogsLoading}
+                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:bg-slate-700/30 transition-colors disabled:opacity-50"
+              >
+                {astLogsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Terminal className="h-4 w-4" />}
+                Log worker
+              </button>
+            </div>
+
+            {/* Build log */}
+            {astBuildLines.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                  Output build {astBuildRunning && <span className="text-indigo-400 animate-pulse">● in corso</span>}
+                </p>
+                <div className="bg-black/60 rounded-lg border border-slate-800 p-3 font-mono text-xs space-y-px max-h-64 overflow-y-auto">
+                  {astBuildLines.map((line, i) => (
+                    <div key={i} className={
+                      line.includes("error") || line.includes("Error") || line.includes("failed") ? "text-red-400" :
+                      line.startsWith("---") ? "text-indigo-300" :
+                      line.includes("✓") || line.includes("completato") || line.includes("riavviato") ? "text-emerald-400" :
+                      "text-slate-400"
+                    }>{line}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* PM2 logs */}
+            {astLogsVisible && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Log worker (ultime 50 righe)</p>
+                  <button onClick={() => setAstLogsVisible(false)} className="text-slate-600 hover:text-slate-400">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <pre className="bg-black/60 rounded-lg border border-slate-800 p-3 font-mono text-xs text-slate-400 max-h-64 overflow-y-auto whitespace-pre-wrap break-all">
+                  {astLogsOutput || "Nessun log disponibile"}
+                </pre>
+              </div>
             )}
 
           </div>

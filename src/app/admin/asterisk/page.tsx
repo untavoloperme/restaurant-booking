@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Phone, PhoneOff, Smartphone, RefreshCw, ExternalLink, Loader2 } from "lucide-react";
+import { Phone, PhoneOff, Smartphone, RefreshCw, ExternalLink, Loader2, Eye, EyeOff } from "lucide-react";
 
 interface MissedCallRow {
   id: string;
@@ -9,6 +9,7 @@ interface MissedCallRow {
   isMobile: boolean;
   whatsappSent: boolean;
   whatsappError: string | null;
+  confirmed: boolean;
   createdAt: string;
 }
 
@@ -22,6 +23,7 @@ export default function AsteriskPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [showNumbers, setShowNumbers] = useState(false);
 
   const load = useCallback(async (p = 1) => {
     setLoading(true);
@@ -43,19 +45,28 @@ export default function AsteriskPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Chiamate perse</h1>
+          <h1 className="text-2xl font-bold">Prenotazioni Telefoniche & Whatsapp</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Chiamate intercettate dal trunk Messagenet — {total} totali
           </p>
         </div>
-        <button
-          onClick={() => load(page)}
-          disabled={loading}
-          className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:border-slate-400 transition-colors disabled:opacity-50"
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Aggiorna
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowNumbers(v => !v)}
+            className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:border-slate-400 transition-colors"
+          >
+            {showNumbers ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {showNumbers ? "Nascondi numeri" : "Mostra numeri"}
+          </button>
+          <button
+            onClick={() => load(page)}
+            disabled={loading}
+            className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:border-slate-400 transition-colors disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Aggiorna
+          </button>
+        </div>
       </div>
 
       <div className="rounded-xl border bg-white overflow-hidden shadow-sm">
@@ -90,7 +101,7 @@ export default function AsteriskPage() {
                         {new Date(row.createdAt).toLocaleString("it-IT")}
                       </td>
                       <td className="px-4 py-3 font-mono text-slate-800">
-                        {maskPhone(row.phone)}
+                        {showNumbers ? row.phone : maskPhone(row.phone)}
                       </td>
                       <td className="px-4 py-3">
                         {row.isMobile ? (
@@ -106,6 +117,10 @@ export default function AsteriskPage() {
                       <td className="px-4 py-3">
                         {!row.isMobile ? (
                           <span className="text-xs text-slate-400">—</span>
+                        ) : row.confirmed ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">
+                            Confermato
+                          </span>
                         ) : row.whatsappSent ? (
                           <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
                             Inviato

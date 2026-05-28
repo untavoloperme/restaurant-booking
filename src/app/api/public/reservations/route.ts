@@ -95,6 +95,18 @@ export async function POST(req: Request) {
 
   emitEvent("reservation_created", { id: reservation.id, date: dateStr, time: effectiveTime });
 
+  // Segna il MissedCall come confermato se c'è una chiamata recente con WA inviato per questo numero
+  void (async () => {
+    try {
+      const normalizedPhone = phone.trim().replace(/\D/g, "").replace(/^39(\d{9,10})$/, "$1");
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      await prisma.missedCall.updateMany({
+        where: { phone: normalizedPhone, whatsappSent: true, confirmed: false, createdAt: { gte: since } },
+        data: { confirmed: true },
+      });
+    } catch { /* non-critical */ }
+  })();
+
   if (requiresVerification && verificationCode) {
     try {
       await sendMessage({

@@ -14,6 +14,7 @@ export interface AsteriskConfig {
   trunkHost: string;
   trunkPort: string;
   trunkContext: string;
+  trunkRegisterPhone: string;
 }
 
 const ASTERISK_KEYS = [
@@ -30,6 +31,7 @@ const ASTERISK_KEYS = [
   "asterisk.trunk.host",
   "asterisk.trunk.port",
   "asterisk.trunk.context",
+  "asterisk.trunk.register_phone",
 ] as const;
 
 export async function getAsteriskConfig(): Promise<AsteriskConfig> {
@@ -49,6 +51,7 @@ export async function getAsteriskConfig(): Promise<AsteriskConfig> {
     trunkHost: m["asterisk.trunk.host"] ?? "sip.messagenet.it",
     trunkPort: m["asterisk.trunk.port"] ?? "5061",
     trunkContext: m["asterisk.trunk.context"] ?? "from-trunk",
+    trunkRegisterPhone: m["asterisk.trunk.register_phone"] ?? "",
   };
 }
 
@@ -84,5 +87,6 @@ exten => _X.,1,NoOp(Chiamata entrante da \${CALLERID(num)})
 
 export function buildRegisterString(cfg: AsteriskConfig): string {
   const secret = cfg.trunkSecret || "INSERISCI_SECRET";
-  return `register => ${cfg.trunkUsername}:${secret}@${cfg.trunkHost}:${cfg.trunkPort}/${cfg.trunkUsername}`;
+  const ext = cfg.trunkRegisterPhone || cfg.trunkUsername;
+  return `register => ${cfg.trunkUsername}:${secret}@${cfg.trunkHost}:${cfg.trunkPort}/${ext}`;
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSaSession } from "@/lib/sa-auth";
-import { getAsteriskConfig, buildSipConfSnippet, buildExtensionsConfSnippet } from "@/lib/asterisk";
+import { getAsteriskConfig, buildSipConfSnippet, buildExtensionsConfSnippet, buildRegisterString } from "@/lib/asterisk";
 import { execSync } from "child_process";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 
@@ -24,6 +24,32 @@ function appendIncludeIfMissing(mainFile: string, includeFile: string, lines: st
   }
   writeFileSync(mainFile, content.trimEnd() + `\n${directive}\n`);
   log(lines, `${mainFile}: aggiunto #include ${includeFile}`);
+}
+
+function injectRegisterInGeneral(sipConfPath: string, registerLine: string, lines: string[]): void {
+  if (!existsSync(sipConfPath)) {
+    log(lines, `ATTENZIONE: ${sipConfPath} non trovato — register non iniettato`);
+    return;
+  }
+  let content = readFileSync(sipConfPath, "utf8");
+
+  // Rimuovi eventuali righe register => già presenti per questo trunk
+  const existing = new RegExp(`^register\\s*=>\\s*${registerLine.split(":")[0].replace("register => ", "")}[^\n]*\n?`, "m");
+  if (existing.test(content)) {
+    content = content.replace(existing, "");
+    log(lines, `sip.conf: rimossa vecchia register line`);
+  }
+
+  // Inietta subito dopo la riga [general]
+  const generalMatch = content.match(/(\[general\][^\n]*\n)/);
+  if (!generalMatch) {
+    log(lines, `ATTENZIONE: sezione [general] non trovata in sip.conf`);
+    return;
+  }
+  const insertAt = content.indexOf(generalMatch[0]) + generalMatch[0].length;
+  content = content.slice(0, insertAt) + `${registerLine}\n` + content.slice(insertAt);
+  writeFileSync(sipConfPath, content);
+  log(lines, `sip.conf: register line iniettata in [general]`);
 }
 
 function asteriskCmd(cmd: string, lines: string[]): void {
@@ -73,19 +99,18 @@ write = system,call,reporting,originate
     log(lines, `Scritto: ${managerFile}`);
     appendIncludeIfMissing(`${AST_DIR}/manager.conf`, "manager_restaurant.conf", lines);
 
-    // ── 3. sip_messagenet.conf ──────────────────────────────
+    // ── 3. sip_messagenet.conf (solo peer, senza register) ──
+    const registerLine = buildRegisterString(cfg);
     const sipConf = `; Generato automaticamente da restaurant-booking
-; Inserisci questa riga nella sezione [general] di sip.conf:
-; register => ${cfg.trunkUsername}:${cfg.trunkSecret}@${cfg.trunkHost}:${cfg.trunkPort}/${cfg.trunkUsername}
-
-register => ${cfg.trunkUsername}:${cfg.trunkSecret}@${cfg.trunkHost}:${cfg.trunkPort}/${cfg.trunkUsername}
-
 ${buildSipConfSnippet(cfg)}
 `;
     const sipFile = `${AST_DIR}/sip_messagenet.conf`;
     writeFileSync(sipFile, sipConf);
     log(lines, `Scritto: ${sipFile}`);
     appendIncludeIfMissing(`${AST_DIR}/sip.conf`, "sip_messagenet.conf", lines);
+
+    // ── 3b. Inietta register => in [general] di sip.conf ────
+    injectRegisterInGeneral(`${AST_DIR}/sip.conf`, registerLine, lines);
 
     // ── 4. extensions_messagenet.conf ───────────────────────
     const extConf = `; Generato automaticamente da restaurant-booking

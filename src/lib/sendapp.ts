@@ -36,7 +36,7 @@ export async function getWhatsappConfig(): Promise<WhatsappConfig> {
     token: map["whatsapp.api.token"] ?? "",
     instanceId: map["whatsapp.instance.id"] ?? "",
     serviceEnabled: map["whatsapp.service.enabled"] === "true",
-    message: map["whatsapp.message"] ?? defaultMessage(),
+    message: map["whatsapp.message"] || defaultMessage(),
     bookingUrl: map["whatsapp.booking.url"] || `${baseUrl}/prenota`,
   };
 }

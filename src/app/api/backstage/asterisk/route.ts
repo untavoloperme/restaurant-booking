@@ -16,6 +16,7 @@ const AST_KEYS = [
   "asterisk.trunk.host",
   "asterisk.trunk.port",
   "asterisk.trunk.context",
+  "asterisk.trunk.register_phone",
 ] as const;
 
 export async function GET() {
@@ -44,6 +45,7 @@ export async function GET() {
     trunkHost: m["asterisk.trunk.host"] ?? "sip.messagenet.it",
     trunkPort: m["asterisk.trunk.port"] ?? "5061",
     trunkContext: m["asterisk.trunk.context"] ?? "from-trunk",
+    trunkRegisterPhone: m["asterisk.trunk.register_phone"] ?? "",
   });
 }
 
@@ -80,6 +82,8 @@ export async function PATCH(req: Request) {
     updates.push({ key: "asterisk.trunk.port", value: body.trunkPort.trim() });
   if (typeof body.trunkContext === "string")
     updates.push({ key: "asterisk.trunk.context", value: body.trunkContext.trim() });
+  if (typeof body.trunkRegisterPhone === "string")
+    updates.push({ key: "asterisk.trunk.register_phone", value: body.trunkRegisterPhone.trim() });
 
   for (const { key, value } of updates) {
     await prisma.setting.upsert({ where: { key }, create: { key, value }, update: { value } });

@@ -198,9 +198,11 @@ model MissedCall {
   isMobile      Boolean
   whatsappSent  Boolean  @default(false)
   whatsappError String?
+  confirmed     Boolean  @default(false)
   createdAt     DateTime @default(now())
 
   @@index([createdAt])
+  @@index([phone, whatsappSent])
 }
 
 model OrderItem {

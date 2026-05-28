@@ -15,6 +15,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { execSync } from "child_process";
 import { getAsteriskConfig, isItalianMobile } from "../src/lib/asterisk";
 import { getWhatsappConfig, sendMessage, buildBookingLink, logWhatsapp, normalizePhone } from "../src/lib/sendapp";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -29,6 +30,9 @@ const STATUS_INTERVAL = 30_000;
 // Throttle per evitare spam WhatsApp (60 min in-memory)
 const throttleMap = new Map<string, number>();
 const THROTTLE_MS = 60 * 60 * 1000;
+
+// Dedup per channel ID: evita doppio invio se Asterisk emette due Newchannel per la stessa chiamata
+const processedChannels = new Set<string>();
 
 function isThrottled(phone: string): boolean {
   const last = throttleMap.get(phone);
@@ -71,13 +75,14 @@ async function updateStatus(trunkName: string) {
   try {
     await upsertSetting("asterisk.status.last_check", new Date().toISOString());
 
-    ami.action({ Action: "SIPshowregistry" }, (_err: Error | null, res: { output?: string[] }) => {
-      const lines: string[] = res?.output ?? [];
-      const registered = lines.some(
-        (l) => l.includes(trunkName) && l.toLowerCase().includes("registered")
-      );
-      upsertSetting("asterisk.status.registered", registered ? "true" : "false").catch(() => {});
-    });
+    // Registrazione: lettura diretta da asterisk CLI (SIPshowregistry AMI non restituisce output nel callback)
+    try {
+      const out = execSync("asterisk -rx 'sip show registry'", { timeout: 5000 }).toString();
+      const registered = out.includes("Registered") && !out.startsWith("0 SIP");
+      await upsertSetting("asterisk.status.registered", registered ? "true" : "false");
+    } catch {
+      await upsertSetting("asterisk.status.registered", "false");
+    }
 
     ami.action({ Action: "SIPshowpeer", Peer: trunkName }, (_err: Error | null, res: { dynamic?: string; status?: string }) => {
       const state = res?.status ?? "Unknown";
@@ -95,6 +100,13 @@ async function handleNewChannel(event: Record<string, string>) {
   if (!cfg?.enabled) return;
   if (context !== cfg.trunkContext) return;
 
+  // Dedup: ignora se questo channel è già stato processato
+  if (channel && processedChannels.has(channel)) return;
+  if (channel) {
+    processedChannels.add(channel);
+    setTimeout(() => processedChannels.delete(channel), 60_000);
+  }
+
   console.log(`[asterisk-bridge] Newchannel context=${context} caller=${callerRaw} channel=${channel}`);
 
   // Hangup immediato
@@ -107,9 +119,18 @@ async function handleNewChannel(event: Record<string, string>) {
 
   const mobile = isItalianMobile(phone);
 
-  // Salva nel DB
+  // Salva nel DB — dedup: ignora se stesso numero nei 30s precedenti
   let callId: string | null = null;
   try {
+    const since = new Date(Date.now() - 30_000);
+    const recent = await prisma.missedCall.findFirst({
+      where: { phone, createdAt: { gte: since } },
+      select: { id: true },
+    });
+    if (recent) {
+      console.log(`[asterisk-bridge] dedup DB: chiamata da ${phone} già registrata (${recent.id})`);
+      return;
+    }
     const call = await prisma.missedCall.create({
       data: { phone, isMobile: mobile },
     });
@@ -133,8 +154,8 @@ async function handleNewChannel(event: Record<string, string>) {
 
     const link = buildBookingLink(wa.bookingUrl, phone);
     const message = wa.message.replace("{link}", link);
-    await sendMessage({ token: wa.token, instanceId: wa.instanceId, number: phone, message });
     setThrottle(phone);
+    await sendMessage({ token: wa.token, instanceId: wa.instanceId, number: phone, message });
 
     if (callId) {
       await prisma.missedCall.update({ where: { id: callId }, data: { whatsappSent: true } });
