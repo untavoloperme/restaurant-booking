@@ -141,6 +141,8 @@ export default function BackstagePage() {
   const [astStatusLoading, setAstStatusLoading] = useState(false);
   const [astReloadLoading, setAstReloadLoading] = useState(false);
   const [astReloadMsg, setAstReloadMsg] = useState("");
+  const [astSetupLoading, setAstSetupLoading] = useState(false);
+  const [astSetupLines, setAstSetupLines] = useState<string[]>([]);
 
   // WhatsApp log state
   const [waLog, setWaLog] = useState<WaLogEntry[]>([]);
@@ -523,6 +525,23 @@ export default function BackstagePage() {
       setAstReloadMsg((e as Error).message);
     } finally {
       setAstReloadLoading(false);
+    }
+  }
+
+  async function setupAsterisk() {
+    if (!confirm("Scrivere i file di configurazione in /etc/asterisk e ricaricare Asterisk?")) return;
+    setAstSetupLoading(true);
+    setAstSetupLines([]);
+    try {
+      const res = await fetch("/api/backstage/asterisk/setup", { method: "POST" });
+      const data = await res.json() as { ok?: boolean; output?: string[]; error?: string };
+      if (!res.ok && data.error) throw new Error(data.error);
+      setAstSetupLines(data.output ?? []);
+    } catch (e) {
+      setAstSetupLines([(e as Error).message]);
+    } finally {
+      setAstSetupLoading(false);
+      void loadAstStatus();
     }
   }
 
@@ -1677,7 +1696,7 @@ exten => _X.,1,NoOp(Chiamata da \${CALLERID(num)})
               </pre>
             </div>
 
-            {/* Save + reload */}
+            {/* Save + setup + reload */}
             <div className="flex flex-wrap gap-3 border-t border-slate-700/50 pt-4">
               <button
                 onClick={saveAstSettings}
@@ -1689,14 +1708,40 @@ exten => _X.,1,NoOp(Chiamata da \${CALLERID(num)})
                 Salva configurazione
               </button>
               <button
+                onClick={setupAsterisk}
+                disabled={astSetupLoading || !astHasAmiSecret || !astHasTrunkSecret}
+                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-emerald-700 text-emerald-400 hover:bg-emerald-600/10 transition-colors disabled:opacity-50"
+                title={!astHasAmiSecret || !astHasTrunkSecret ? "Salva prima le credenziali AMI e il secret trunk" : ""}
+              >
+                {astSetupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Configura Asterisk sul server
+              </button>
+              <button
                 onClick={reloadSip}
                 disabled={astReloadLoading || !astHasAmiSecret}
                 className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-amber-700 text-amber-400 hover:bg-amber-600/10 transition-colors disabled:opacity-50"
               >
                 {astReloadLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Ricarica sip.conf in Asterisk
+                Ricarica sip.conf
               </button>
             </div>
+
+            {/* Setup output log */}
+            {astSetupLines.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Output setup</p>
+                <div className="bg-black/60 rounded-lg border border-slate-800 p-3 font-mono text-xs space-y-px max-h-48 overflow-y-auto">
+                  {astSetupLines.map((line, i) => (
+                    <div key={i} className={
+                      line.includes("ERRORE") || line.includes("ATTENZIONE") ? "text-red-400" :
+                      line.startsWith("---") ? "text-indigo-300" :
+                      line.includes("aggiunto") || line.includes("completato") ? "text-emerald-400" :
+                      "text-slate-400"
+                    }>{line}</div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {(astMsg || astReloadMsg) && (
               <p className="text-xs text-slate-300 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700 font-mono">
