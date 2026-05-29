@@ -162,6 +162,12 @@ export default function BackstagePage() {
   const [workerRestartLoading, setWorkerRestartLoading] = useState(false);
   const [workerRestartMsg, setWorkerRestartMsg] = useState("");
 
+  // Clear database state
+  const [clearTarget, setClearTarget] = useState<string | null>(null);
+  const [clearPassword, setClearPassword] = useState("");
+  const [clearLoading, setClearLoading] = useState(false);
+  const [clearMsg, setClearMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
   // SSH state
   const [sshActive, setSshActive] = useState(false);
   const [sshLoading, setSshLoading] = useState(false);
@@ -824,6 +830,28 @@ exten => _X.,1,NoOp(Chiamata da \${CALLERID(num)})
       setUserMsg((e as Error).message);
     } finally {
       setUserLoading(false);
+    }
+  }
+
+  async function executeClear() {
+    if (!clearTarget || !clearPassword) return;
+    setClearLoading(true);
+    setClearMsg(null);
+    try {
+      const res = await fetch("/api/backstage/clear-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target: clearTarget, password: clearPassword }),
+      });
+      const data = await res.json() as { ok?: boolean; deleted?: number; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Errore");
+      setClearMsg({ text: `Eliminati ${data.deleted} record`, ok: true });
+      setClearTarget(null);
+      setClearPassword("");
+    } catch (e) {
+      setClearMsg({ text: (e as Error).message, ok: false });
+    } finally {
+      setClearLoading(false);
     }
   }
 
@@ -1968,6 +1996,119 @@ exten => _X.,1,NoOp(Chiamata da \${CALLERID(num)})
               </div>
             )}
 
+          </div>
+        </section>
+
+        {/* Svuota Database */}
+        <section>
+          <h2 className="text-lg font-bold mb-1">Svuota Database</h2>
+          <p className="text-xs text-slate-500 mb-4">
+            Elimina definitivamente i dati dal database. Ogni operazione richiede la password del superadmin.
+          </p>
+          <div className="rounded-xl border border-red-900/40 bg-slate-900/60 p-5 space-y-4">
+
+            {/* Grid pulsanti */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { key: "reservations", label: "Prenotazioni", desc: "Elimina tutte le prenotazioni (tabella Reservation)", icon: CalendarCheck },
+                { key: "orders", label: "Ordini", desc: "Elimina tutti gli ordini e le righe ordine (Order + OrderItem)", icon: ClipboardList },
+                { key: "whatsapp_log", label: "Log WhatsApp", desc: "Elimina i messaggi WA inviati ai clienti (WhatsappLog)", icon: MessageSquare },
+                { key: "missed_calls", label: "Chiamate Perse", desc: "Elimina il registro delle chiamate perse (MissedCall)", icon: PhoneMissed },
+                { key: "menu", label: "Menu", desc: "Elimina tutto il menu: categorie, sottocategorie e piatti", icon: UtensilsCrossed },
+                { key: "users", label: "Utenti Staff", desc: "Elimina tutti gli utenti del pannello admin (non il superadmin)", icon: Users },
+              ].map(({ key, label, desc, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => { setClearTarget(key); setClearPassword(""); setClearMsg(null); }}
+                  className={`text-left rounded-xl border p-4 flex items-start gap-3 transition-all ${
+                    clearTarget === key
+                      ? "border-red-500/60 bg-red-500/10"
+                      : "border-slate-700/60 hover:border-red-800/60 hover:bg-red-900/10"
+                  }`}
+                >
+                  <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-red-500/10 text-red-400">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-200">{label}</p>
+                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Pulsante TUTTO */}
+            <button
+              onClick={() => { setClearTarget("all"); setClearPassword(""); setClearMsg(null); }}
+              className={`w-full text-left rounded-xl border p-4 flex items-center gap-3 transition-all ${
+                clearTarget === "all"
+                  ? "border-red-500/60 bg-red-500/10"
+                  : "border-red-900/50 hover:border-red-700 hover:bg-red-900/10"
+              }`}
+            >
+              <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-red-500/15 text-red-400">
+                <Trash2 className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-red-400">Svuota tutto</p>
+                <p className="text-xs text-slate-500 mt-0.5">Elimina prenotazioni, ordini, menu, log WA, chiamate perse e utenti staff</p>
+              </div>
+            </button>
+
+            {/* Panel conferma con password */}
+            {clearTarget && (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 space-y-3">
+                <p className="text-sm font-semibold text-red-400 flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4" />
+                  Conferma svuotamento — inserisci la password superadmin
+                </p>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <Input
+                    type="password"
+                    placeholder="Password superadmin"
+                    value={clearPassword}
+                    onChange={e => setClearPassword(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && clearPassword) executeClear(); }}
+                    className="max-w-64 bg-slate-900 border-slate-700 text-slate-100 text-sm"
+                    autoFocus
+                  />
+                  <button
+                    onClick={executeClear}
+                    disabled={clearLoading || !clearPassword}
+                    className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white disabled:opacity-50 transition-colors"
+                  >
+                    {clearLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    Conferma eliminazione
+                  </button>
+                  <button
+                    onClick={() => { setClearTarget(null); setClearPassword(""); setClearMsg(null); }}
+                    className="text-sm px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 transition-colors"
+                  >
+                    Annulla
+                  </button>
+                </div>
+                {clearMsg && (
+                  <p className={`text-xs font-mono px-3 py-2 rounded-lg border ${
+                    clearMsg.ok
+                      ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                      : "text-red-400 bg-red-500/10 border-red-500/20"
+                  }`}>
+                    {clearMsg.text}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Messaggio dopo chiusura panel */}
+            {!clearTarget && clearMsg && (
+              <p className={`text-xs font-mono px-3 py-2 rounded-lg border ${
+                clearMsg.ok
+                  ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                  : "text-red-400 bg-red-500/10 border-red-500/20"
+              }`}>
+                {clearMsg.text}
+              </p>
+            )}
           </div>
         </section>
 
