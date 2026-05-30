@@ -10,6 +10,7 @@ export interface Shift {
 export interface AvailableSlot {
   time: string; // "HH:mm"
   shift: number; // 0 o 1 (indice del turno per weekend)
+  available: boolean;
 }
 
 const MEAL_DURATION_MIN = 105; // durata media seduta feriale
@@ -137,7 +138,7 @@ export async function getAvailableSlots(
         if (canFit) {
           // Evita duplicati
           if (!result.find((s) => s.time === effectiveTime && s.shift === turnIdx)) {
-            result.push({ time: effectiveTime, shift: turnIdx });
+            result.push({ time: effectiveTime, shift: turnIdx, available: true });
           }
         }
       }

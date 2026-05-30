@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offerta Commerciale — untavoloper.me</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Inter:wght@300;400;500;600&display=swap');
+
+    :root {
+      --brown-dark: #2c2420;
+      --brown-mid:  #6b5d52;
+      --brown-light:#8a7e72;
+      --orange:     #c2703a;
+      --orange-dark:#a85e2e;
+      --cream:      #faf8f5;
+      --border:     #e8e0d8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      font-size: 10pt;
+      color: var(--brown-dark);
+      background: #fff;
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 12mm 16mm 12mm;
+    }
+
+    /* ---- HEADER ---- */
+    .header {
+      text-align: center;
+      border-bottom: 2px solid var(--orange);
+      padding-bottom: 8mm;
+      margin-bottom: 7mm;
+    }
+    .header img {
+      height: 180px;
+      width: auto;
+      display: block;
+      margin: 0 auto 5mm;
+    }
+    .header-meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-top: 4mm;
+    }
+    .header-meta-row .left { text-align: left; }
+    .header-meta-row .right { text-align: right; }
+    .header-meta-row p { font-size: 8.5pt; color: var(--brown-mid); line-height: 1.7; }
+    .header-meta-row .doc-number { font-size: 9pt; font-weight: 600; color: var(--brown-dark); }
+
+    /* ---- TITLES ---- */
+    h1 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 20pt;
+      font-weight: 400;
+      color: var(--brown-dark);
+      margin-bottom: 2mm;
+    }
+    h2 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 13pt;
+      font-weight: 400;
+      color: var(--brown-dark);
+      margin-bottom: 3mm;
+    }
+
+    .label {
+      font-size: 7pt;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin-bottom: 1mm;
+      display: block;
+    }
+
+    /* ---- INTRO ---- */
+    .intro {
+      background: var(--cream);
+      border-left: 3px solid var(--orange);
+      padding: 4mm 6mm;
+      margin-bottom: 7mm;
+      border-radius: 0 4px 4px 0;
+    }
+    .intro p { font-size: 9pt; color: var(--brown-mid); }
+
+    /* ---- PLANS GRID ---- */
+    .plans {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5mm;
+      margin-bottom: 6mm;
+    }
+
+    .plan { border: 1.5px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .plan.pro { border-color: var(--orange); }
+
+    .plan-header { padding: 4mm 5mm 3mm; background: var(--cream); }
+    .plan.pro .plan-header { background: var(--brown-dark); }
+
+    .plan-name {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 14pt;
+      font-weight: 400;
+      color: var(--brown-dark);
+    }
+    .plan.pro .plan-name { color: #fff; }
+
+    .plan-price {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 24pt;
+      font-weight: 400;
+      color: var(--orange);
+      line-height: 1;
+      margin: 2mm 0 0;
+    }
+    .plan-price span { font-size: 9pt; color: var(--brown-mid); font-family: 'Inter', sans-serif; }
+    .plan.pro .plan-price span { color: var(--brown-light); }
+
+    .plan-note {
+      font-size: 7.5pt;
+      color: var(--brown-mid);
+      margin-top: 1mm;
+    }
+    .plan.pro .plan-note { color: var(--brown-light); }
+
+    .plan-startup {
+      font-size: 8pt;
+      color: var(--brown-mid);
+      border-top: 1px solid var(--border);
+      padding-top: 2.5mm;
+      margin-top: 2.5mm;
+    }
+    .plan.pro .plan-startup { color: var(--brown-light); border-color: rgba(255,255,255,0.15); }
+    .plan-startup strong { color: var(--brown-dark); }
+    .plan.pro .plan-startup strong { color: #fff; }
+
+    .plan-badge {
+      display: inline-block;
+      background: var(--orange);
+      color: #fff;
+      font-size: 6.5pt;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 1px 5px;
+      border-radius: 20px;
+      margin-bottom: 1mm;
+    }
+
+    .plan-features { padding: 3mm 5mm; }
+    .plan-features ul { list-style: none; }
+    .plan-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 3mm;
+      font-size: 8pt;
+      padding: 1.2mm 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--brown-dark);
+    }
+    .plan-features li:last-child { border-bottom: none; }
+    .plan-features li .check { color: var(--orange); flex-shrink: 0; }
+    .plan-features li .arrow { color: var(--brown-light); flex-shrink: 0; }
+    .plan-features li.pro-extra { color: var(--brown-mid); font-style: italic; }
+
+    /* ---- ADD-ONS ---- */
+    .addons {
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 6mm;
+    }
+    .addons-header {
+      background: var(--cream);
+      border-bottom: 1px solid var(--border);
+      padding: 2.5mm 5mm;
+    }
+    .addons-header p { font-size: 7.5pt; color: var(--brown-mid); }
+    .addons-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    .addon-item {
+      padding: 4mm 5mm;
+      border-right: 1px solid var(--border);
+    }
+    .addon-item:last-child { border-right: none; }
+    .addon-title { font-size: 8.5pt; font-weight: 600; color: var(--brown-dark); margin-bottom: 1mm; }
+    .addon-desc { font-size: 7.5pt; color: var(--brown-mid); line-height: 1.4; margin-bottom: 2mm; }
+    .addon-price { font-size: 11pt; font-family: 'Playfair Display', Georgia, serif; color: var(--orange); }
+    .addons-totals {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-top: 1px solid var(--border);
+      background: var(--cream);
+    }
+    .addons-totals div {
+      padding: 2.5mm 5mm;
+      font-size: 8pt;
+      color: var(--brown-mid);
+      border-right: 1px solid var(--border);
+    }
+    .addons-totals div:last-child { border-right: none; }
+    .addons-totals strong { color: var(--brown-dark); }
+    .addons-totals .total-price { color: var(--orange); font-weight: 600; }
+
+    /* ---- AVVIAMENTO TABLE ---- */
+    .av-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8pt;
+      margin-bottom: 6mm;
+    }
+    .av-table thead tr {
+      background: var(--cream);
+      border-bottom: 2px solid var(--orange);
+    }
+    .av-table th { text-align: left; padding: 2.5mm 4mm; font-weight: 600; }
+    .av-table th.center { text-align: center; }
+    .av-table td { padding: 2mm 4mm; border-bottom: 1px solid var(--border); }
+    .av-table td.center { text-align: center; }
+    .av-table td.orange { color: var(--orange); text-align: center; }
+    .av-table td.dim { color: var(--brown-light); text-align: center; }
+
+    /* ---- SUMMARY TABLE ---- */
+    .summary { margin-bottom: 6mm; }
+    .summary table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+    .summary th {
+      text-align: left; padding: 2.5mm 4mm; font-weight: 600; font-size: 8pt;
+      background: var(--cream); border-bottom: 2px solid var(--orange);
+    }
+    .summary th.right { text-align: right; }
+    .summary td { padding: 2mm 4mm; border-bottom: 1px solid var(--border); }
+    .summary td.right { text-align: right; }
+    .summary td.orange { color: var(--orange); font-weight: 600; }
+    .summary td.dim { color: var(--brown-mid); }
+    .summary tr.sep td { border-top: 1px dashed var(--border); background: var(--cream); font-size: 7.5pt; color: var(--brown-mid); padding: 1.5mm 4mm; }
+    .summary tr.total td { font-weight: 600; background: var(--cream); border-top: 2px solid var(--border); }
+    .summary tr.grand td { font-weight: 700; background: var(--brown-dark); color: #fff; }
+    .summary tr.grand td.orange { color: var(--orange); }
+
+    /* ---- ROI ---- */
+    .roi {
+      background: var(--brown-dark); color: #fff;
+      border-radius: 6px; padding: 4mm 5mm; margin-bottom: 6mm;
+    }
+    .roi p { font-size: 8.5pt; line-height: 1.6; color: rgba(255,255,255,0.8); }
+    .roi strong { color: var(--orange); }
+
+    /* ---- NOTES ---- */
+    .notes { margin-bottom: 7mm; }
+    .notes ul { list-style: none; padding: 0; }
+    .notes li {
+      font-size: 7.5pt; color: var(--brown-mid);
+      padding: 1mm 0 1mm 4mm; position: relative;
+    }
+    .notes li::before { content: "·"; position: absolute; left: 0; color: var(--orange); }
+
+    /* ---- SIGNATURE ---- */
+    .signature {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8mm;
+      border-top: 1px solid var(--border); padding-top: 5mm; margin-top: 3mm;
+    }
+    .sig-box p { font-size: 8pt; color: var(--brown-mid); margin-bottom: 7mm; }
+    .sig-line { border-bottom: 1px solid var(--brown-mid); margin-bottom: 1mm; }
+    .sig-label { font-size: 7.5pt; color: var(--brown-light); }
+
+    /* ---- FOOTER ---- */
+    .footer { text-align: center; margin-top: 5mm; padding-top: 3mm; border-top: 1px solid var(--border); }
+    .footer p { font-size: 7.5pt; color: var(--brown-light); }
+    .footer strong { color: var(--orange); }
+
+    /* ---- PRINT ---- */
+    @media print {
+      @page { size: A4; margin: 0; }
+      body { background: #fff; }
+      .page { padding: 12mm 16mm 12mm; }
+      .no-print { display: none !important; }
+      textarea {
+        border: 1.5px solid #ccc !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+
+    .print-btn {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      background: var(--orange); color: #fff; border: none;
+      padding: 12px 24px; border-radius: 30px;
+      font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600;
+      cursor: pointer; box-shadow: 0 4px 20px rgba(194,112,58,0.4);
+      display: flex; align-items: center; gap: 8px; transition: background 0.2s;
+    }
+    .print-btn:hover { background: var(--orange-dark); }
+
+    /* ---- SCREEN ---- */
+    @media screen {
+      body { background: #e8e0d8; }
+      .page { box-shadow: 0 4px 40px rgba(0,0,0,0.15); margin: 20px auto; background: #fff; }
+    }
+  </style>
+</head>
+<body>
+
+  <button class="print-btn no-print" onclick="window.print()">
+    🖨️ Stampa / Salva PDF
+  </button>
+
+  <div class="page">
+
+    <!-- HEADER -->
+    <div class="header">
+      <img src="/untavoloperlogo.svg" alt="untavoloper.me" />
+      <div class="header-meta-row">
+        <div class="left">
+          <span class="label">Gestionale per ristoranti</span>
+          <h1>Piani di noleggio mensile</h1>
+        </div>
+        <div class="right">
+          <p class="doc-number">Offerta Commerciale</p>
+          <p id="doc-date">Data emissione: —</p>
+          <p id="doc-expiry" style="font-weight:600;color:var(--orange)">Valida fino al: —</p>
+          <p>untavoloper.me</p>
+          <p>untavoloperme@gmail.com</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- INTRO -->
+    <div class="intro">
+      <p>
+        <strong>untavoloper.me</strong> è un gestionale completo per ristoranti: prenotazioni online,
+        floor plan interattivo, menu QR ai tavoli e automazione WhatsApp. Il Piano Pro aggiunge
+        l'integrazione telefonica Asterisk con risposta automatica via WhatsApp a ogni chiamata persa.
+        <br />
+        <strong>I canoni indicati comprendono solo il software gestionale.</strong>
+        Numero telefonico SIP e messaggi WhatsApp sono servizi aggiuntivi fatturati separatamente (vedi sezione add-on).
+        Zero commissioni per coperto — dati sempre di tua proprietà.
+      </p>
+    </div>
+
+    <!-- PLANS -->
+    <span class="label">Piani gestionale disponibili</span>
+    <div class="plans">
+
+      <!-- BASE -->
+      <div class="plan">
+        <div class="plan-header">
+          <div class="plan-name">Tavola Base</div>
+          <div class="plan-price">€99 <span>/mese + IVA</span></div>
+          <div class="plan-note">solo gestionale, add-on esclusi</div>
+          <div class="plan-startup">Avviamento una tantum: <strong>€249</strong></div>
+        </div>
+        <div class="plan-features">
+          <ul>
+            <li><span class="check">✓</span> Widget prenotazione embeddabile nel sito</li>
+            <li><span class="check">✓</span> Pannello admin completo (Admin + Staff + Cucina)</li>
+            <li><span class="check">✓</span> Floor plan interattivo con stato tavoli in diretta</li>
+            <li><span class="check">✓</span> Menu QR ai tavoli + sistema ordini</li>
+            <li><span class="check">✓</span> Conferme e reminder automatici via WhatsApp</li>
+            <li><span class="check">✓</span> Auto-reply WhatsApp con link prenotazione personalizzato</li>
+            <li><span class="check">✓</span> Aggiornamenti in tempo reale sala/cucina</li>
+            <li><span class="check">✓</span> Assistenza post-avviamento via email / WhatsApp</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- PRO -->
+      <div class="plan pro">
+        <div class="plan-header">
+          <div class="plan-badge">Consigliato</div>
+          <div class="plan-name">Tavola Pro</div>
+          <div class="plan-price">€159 <span>/mese + IVA</span></div>
+          <div class="plan-note" style="color:rgba(255,255,255,0.4)">solo gestionale, add-on esclusi</div>
+          <div class="plan-startup">Avviamento una tantum: <strong>€399</strong></div>
+        </div>
+        <div class="plan-features">
+          <ul>
+            <li class="pro-extra"><span class="arrow">→</span> Tutto il Piano Base incluso</li>
+            <li><span class="check">✓</span> Integrazione telefonica Asterisk</li>
+            <li><span class="check">✓</span> Intercettazione e log di tutte le chiamate in arrivo</li>
+            <li><span class="check">✓</span> Auto-WhatsApp istantaneo a chi chiama da cellulare</li>
+            <li><span class="check">✓</span> Dashboard chiamate perse con log completo</li>
+            <li><span class="check">✓</span> Configurazione trunk SIP guidata dal pannello</li>
+            <li><span class="check">✓</span> Assistenza telefonica + sessione remota (TeamViewer)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADD-ONS -->
+    <span class="label">Servizi aggiuntivi — obbligatori per telefonia e WhatsApp</span>
+    <div class="addons">
+      <div class="addons-header">
+        <p>I seguenti servizi sono necessari per attivare le funzionalità di comunicazione. Fatturati mensilmente insieme al canone gestionale.</p>
+      </div>
+      <div class="addons-grid">
+        <div class="addon-item">
+          <div class="addon-title">📞 Numero telefonico locale (SIP)</div>
+          <div class="addon-desc">Linea SIP dedicata su rete Messagenet. Necessario per il Piano Pro per ricevere e intercettare chiamate. Opzionale per il Piano Base.</div>
+          <div class="addon-price">€25 <span style="font-size:8pt;font-family:'Inter',sans-serif;color:var(--brown-mid)">+ IVA / mese</span></div>
+        </div>
+        <div class="addon-item">
+          <div class="addon-title">💬 10.000 messaggi WhatsApp / mese</div>
+          <div class="addon-desc">Servizio SendApp Cloud. Sufficiente per circa 150 prenotazioni al giorno con conferme, reminder e auto-reply inclusi.</div>
+          <div class="addon-price">€25 <span style="font-size:8pt;font-family:'Inter',sans-serif;color:var(--brown-mid)">+ IVA / mese</span></div>
+        </div>
+      </div>
+      <div class="addons-totals">
+        <div><strong>Base + WhatsApp:</strong> €99 + €25 = <span class="total-price">€124/mese + IVA</span></div>
+        <div><strong>Pro + Telefono + WhatsApp:</strong> €159 + €25 + €25 = <span class="total-price">€209/mese + IVA</span></div>
+      </div>
+    </div>
+
+    <!-- AVVIAMENTO DETAIL -->
+    <span class="label">Costo di avviamento — dettaglio attività</span>
+    <table class="av-table">
+      <thead>
+        <tr>
+          <th>Attività</th>
+          <th class="center">Base</th>
+          <th class="center">Pro</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Analisi esigenze cliente (call iniziale)</td>
+          <td class="orange">✓</td><td class="orange">✓</td>
+        </tr>
+        <tr>
+          <td>Configurazione orari, turni e slot prenotazione</td>
+          <td class="orange">✓</td><td class="orange">✓</td>
+        </tr>
+        <tr>
+          <td>Inserimento sale, tavoli e floor plan</td>
+          <td class="orange">✓</td><td class="orange">✓</td>
+        </tr>
+        <tr>
+          <td>Preparazione menu digitale (fino a 60 voci)</td>
+          <td class="orange">✓</td><td class="orange">✓</td>
+        </tr>
+        <tr>
+          <td>Setup numero SIP + configurazione Asterisk + test end-to-end</td>
+          <td class="dim">—</td><td class="orange">✓</td>
+        </tr>
+        <tr>
+          <td>Istruzione staff + guida personalizzata</td>
+          <td class="center" style="font-size:7.5pt">Email / WhatsApp</td>
+          <td class="center" style="font-size:7.5pt">Telefonica + remota</td>
+        </tr>
+        <tr>
+          <td>Assistenza post-go-live (30 giorni)</td>
+          <td class="center" style="font-size:7.5pt">Email / WhatsApp</td>
+          <td class="center" style="font-size:7.5pt">Tel. + TeamViewer</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- SUMMARY -->
+    <div class="summary">
+      <span class="label">Riepilogo economico completo (IVA esclusa)</span>
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th class="right">Tavola Base + WA</th>
+            <th class="right">Tavola Pro + Tel + WA</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Avviamento (una tantum)</td>
+            <td class="right orange">€249</td>
+            <td class="right orange">€399</td>
+          </tr>
+          <tr class="sep">
+            <td colspan="3">Canone mensile ricorrente</td>
+          </tr>
+          <tr>
+            <td class="dim">Canone gestionale</td>
+            <td class="right dim">€99 / mese</td>
+            <td class="right dim">€159 / mese</td>
+          </tr>
+          <tr>
+            <td class="dim">Add-on numero telefonico SIP</td>
+            <td class="right dim">—</td>
+            <td class="right dim">€25 / mese</td>
+          </tr>
+          <tr>
+            <td class="dim">Add-on 10.000 messaggi WhatsApp</td>
+            <td class="right dim">€25 / mese</td>
+            <td class="right dim">€25 / mese</td>
+          </tr>
+          <tr class="total">
+            <td>Totale mensile</td>
+            <td class="right orange">€124 / mese</td>
+            <td class="right orange">€209 / mese</td>
+          </tr>
+          <tr>
+            <td>Costo totale 1° anno</td>
+            <td class="right">€2.037</td>
+            <td class="right">€2.907</td>
+          </tr>
+          <tr class="total">
+            <td>Dal 2° anno in poi</td>
+            <td class="right">€1.788 / anno</td>
+            <td class="right">€2.508 / anno</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ROI -->
+    <div class="roi">
+      <span class="label" style="color:var(--orange)">Ritorno sull'investimento — Piano Pro</span>
+      <p>
+        Con uno scontrino medio di <strong>€35 a persona</strong>, bastano
+        <strong>3 tavoli da 2 persone al mese</strong> per coprire l'intera differenza annua
+        rispetto al Piano Base (€870/anno). Ogni chiamata intercettata con risposta automatica WhatsApp
+        è un tavolo recuperato — il modulo telefonico si ripaga entro la prima settimana.
+      </p>
+    </div>
+
+    <!-- PAGE 3: textarea + note + firma -->
+    <div style="page-break-before: always; padding-top: 8mm;">
+
+      <!-- TEXTAREA -->
+      <div style="margin-bottom: 7mm;">
+        <span class="label">Note aggiuntive / Condizioni particolari concordate</span>
+        <textarea
+          rows="10"
+          placeholder="Inserire qui eventuali condizioni particolari, sconti concordati, note specifiche per questo cliente…"
+          style="
+            width: 100%;
+            border: 1.5px solid var(--border);
+            border-radius: 4px;
+            padding: 4mm;
+            font-family: 'Inter', sans-serif;
+            font-size: 9pt;
+            color: var(--brown-dark);
+            resize: vertical;
+            line-height: 1.6;
+            background: #fff;
+            box-sizing: border-box;
+          "
+        ></textarea>
+      </div>
+
+      <!-- NOTES -->
+      <div class="notes">
+        <span class="label">Note e condizioni</span>
+        <ul>
+          <li>Tutti i prezzi sono IVA esclusa. Fattura elettronica emessa mensilmente.</li>
+          <li>Il canone gestionale <strong>non include</strong> numero telefonico e messaggi WhatsApp, fatturati come add-on separati.</li>
+          <li>L'add-on numero SIP (€25/mese) è obbligatorio per il Piano Pro; opzionale per il Piano Base.</li>
+          <li>L'add-on WhatsApp (€25/mese, 10.000 msg) è necessario per le funzionalità di automazione messaggi.</li>
+          <li><strong>Durata minima contrattuale: 12 mesi</strong> con tacito rinnovo annuale.</li>
+          <li>Recesso: preavviso scritto almeno <strong>3 mesi prima della scadenza annuale</strong>.</li>
+          <li>Aggiornamenti software e backup giornalieri inclusi nel canone gestionale.</li>
+          <li>Voci di menu aggiuntive oltre 60: €30 una tantum per pacchetti da 30 voci.</li>
+          <li>Seconda sede dello stesso proprietario: sconto 20% sul canone gestionale.</li>
+          <li id="note-expiry">Offerta valida 7 giorni dalla data di emissione.</li>
+        </ul>
+      </div>
+
+      <!-- SIGNATURE -->
+      <div class="signature">
+        <div class="sig-box">
+          <p>Per accettazione — <em>Il Cliente</em></p>
+          <div class="sig-line"></div>
+          <p class="sig-label">Timbro e firma</p>
+        </div>
+        <div class="sig-box">
+          <p>Per <em>untavoloper.me</em></p>
+          <div class="sig-line"></div>
+          <p class="sig-label">Firma del fornitore</p>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="footer">
+        <p><strong>untavoloper.me</strong> · untavoloperme@gmail.com · <strong>www.untavoloper.me</strong></p>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    const opts = { day: '2-digit', month: 'long', year: 'numeric' };
+    const today = new Date();
+    const expiry = new Date(today);
+    expiry.setDate(expiry.getDate() + 7);
+    document.getElementById('doc-date').textContent =
+      'Data emissione: ' + today.toLocaleDateString('it-IT', opts);
+    document.getElementById('doc-expiry').textContent =
+      'Valida fino al: ' + expiry.toLocaleDateString('it-IT', opts);
+    document.getElementById('note-expiry').textContent =
+      'Offerta valida fino al ' + expiry.toLocaleDateString('it-IT', opts) + ' (7 giorni dalla data di emissione).';
+  </script>
+</body>
+</html>
